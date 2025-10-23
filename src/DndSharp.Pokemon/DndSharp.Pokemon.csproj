@@ -1,0 +1,14 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DndSharp.5E2014\DndSharp.5E2014.csproj" />
+    <ProjectReference Include="..\DndSharp.PokeDex\DndSharp.PokeDex.csproj" />
+  </ItemGroup>
+
+</Project>
