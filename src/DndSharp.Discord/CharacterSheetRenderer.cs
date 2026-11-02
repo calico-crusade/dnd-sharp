@@ -122,13 +122,16 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
         }
         if (int.TryParse(Text(sheet, "scarCount"), out var scars) && scars > 0) details.Add(new Entry("Scars", scars.ToString()));
         AddCard(columns.Middle, "ADDITIONAL DETAILS", details);
-        var yMiddle = top;
-        var yRight = top;
-        foreach (var card in columns.Middle) yMiddle = render.Card(card, middle, yMiddle, panelWidth, MaxHeight - 55);
-        foreach (var card in columns.Right) yRight = render.Card(card, right, yRight, panelWidth, MaxHeight - 55);
-        var yLeft = top + 530;
-        foreach (var card in columns.Left) yLeft = render.Card(card, left, yLeft, panelWidth, MaxHeight - 55);
-        var bottom = Math.Min(MaxHeight, Math.Max(top + 530, Math.Max(yLeft, Math.Max(yMiddle, yRight))) + 45);
+        var cards = columns.Left.Concat(columns.Middle).Concat(columns.Right).Select(card => render.Prepare(card, panelWidth)).ToArray();
+        var assignments = SheetColumnLayout.Arrange(cards.Select(card => card.Height + 20).ToArray(), statsHeight: 530);
+        int[] positions = [top + 530, top, top];
+        int[] xPositions = [left, middle, right];
+        for (var i = 0; i < cards.Length; i++)
+        {
+            var column = assignments[i];
+            positions[column] = render.Card(cards[i], xPositions[column], positions[column], panelWidth, MaxHeight - 55);
+        }
+        var bottom = Math.Min(MaxHeight, positions.Max() + 45);
         var footer = render.Truncated ? "HEART OF DAGGERS  •  CHARACTER SNAPSHOT  •  SOME CONTENT OMITTED" : "HEART OF DAGGERS  •  CHARACTER SNAPSHOT";
         render.Text(footer, 14, 52, bottom - 28, 1500, true, SKColor.Parse("A5ABB8"));
         token.ThrowIfCancellationRequested();
@@ -260,6 +263,10 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
 
     private sealed record Entry(string Name, string Details);
     private sealed record Card(string Title, Entry[] Entries, bool Accent);
+    private sealed record PreparedCard(Card Card, IReadOnlyList<(string Text, bool Bold)> Lines)
+    {
+        public int Height => 60 + Lines.Count * 23;
+    }
 
     private sealed class Painter(SKCanvas canvas, SKPaint paint, SKTypeface typeface)
     {
@@ -291,9 +298,8 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
             Rect(SKColor.Parse("AAB4C0"), x, y + 39, width, 2);
             Text(title, 16, x + 15, y + 10, width - 30, true, Ink, true);
         }
-        public int Card(Card card, int x, int y, int width, int limit)
+        public PreparedCard Prepare(Card card, int width)
         {
-            if (y >= limit - 100) { Truncated = true; return y; }
             var lines = new List<(string Text, bool Bold)>();
             foreach (var entry in card.Entries)
             {
@@ -301,8 +307,14 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
                 if (!string.IsNullOrWhiteSpace(entry.Details)) foreach (var line in Wrap(entry.Details, width - 48, false)) lines.Add((line, false));
                 lines.Add(("", false));
             }
-            var needed = 60 + lines.Count * 23;
-            var available = Math.Min(needed, limit - y);
+            return new PreparedCard(card, lines);
+        }
+        public int Card(PreparedCard prepared, int x, int y, int width, int limit)
+        {
+            if (y >= limit - 100) { Truncated = true; return y; }
+            var card = prepared.Card;
+            var lines = prepared.Lines;
+            var available = Math.Min(prepared.Height, limit - y);
             if (available < 80) { Truncated = true; return y; }
             Panel(x, y, width, available, card.Title);
             if (card.Accent) Rect(SKColor.Parse("8B2C37"), x, y + 40, 5, available - 40);
