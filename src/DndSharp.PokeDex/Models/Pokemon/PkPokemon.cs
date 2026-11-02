@@ -21,12 +21,12 @@ public class PkPokemon : PkBase
     public Move[] Moves { get; set; } = [];
 
     [JsonPropertyName("base_experience")]
-    public int BaseExperience { get; set; }
+    public int? BaseExperience { get; set; }
 
     [JsonPropertyName("height")]
     public int Height { get; set; }
 
-    [JsonPropertyName("width")]
+    [JsonPropertyName("weight")]
     public int Weight { get; set; }
 
     [JsonPropertyName("is_default")]

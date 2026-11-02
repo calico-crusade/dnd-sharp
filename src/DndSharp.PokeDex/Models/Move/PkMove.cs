@@ -51,7 +51,7 @@ public class PkMove : PkLocalizedBase
     public FlavorText[] FlavorTextEntries { get; set; } = [];
 
     [JsonPropertyName("generation")]
-    public PkResource Generation { get; set; }
+    public required PkResource Generation { get; set; }
 
     [JsonPropertyName("learned_by_pokemon")]
     public PkResource[] LearnedBy { get; set; } = [];
@@ -106,15 +106,19 @@ public class PkMove : PkLocalizedBase
 
     public class Combos
     {
+        [JsonPropertyName("normal")]
         public CombosData? Normal { get; set; }
 
+        [JsonPropertyName("super")]
         public CombosData? Super { get; set; }
     }
 
     public class CombosData
     {
+        [JsonPropertyName("use_after")]
         public PkResource[]? UseAfter { get; set; }
 
+        [JsonPropertyName("use_before")]
         public PkResource[]? UseBefore { get; set; }
     }
 

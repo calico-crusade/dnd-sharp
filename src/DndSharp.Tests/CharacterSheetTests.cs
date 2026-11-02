@@ -69,6 +69,27 @@ public sealed class CharacterSheetTests
         Assert.AreEqual(0, handler.Calls);
     }
 
+    [TestMethod]
+    public async Task SheetThemesRenderDifferentPalettesAndRejectUnknownThemes()
+    {
+        using var json = JsonDocument.Parse("""{"name":"Hero","trackers":{},"traits":[]}""");
+        using var http = new HttpClient(new RejectingHandler());
+        var renderer = new CharacterSheetRenderer(http);
+        var snapshot = new CharacterSnapshot(json.RootElement.Clone(), null);
+        await using var lightStream = await renderer.RenderAsync(snapshot, "light");
+        await using var darkStream = await renderer.RenderAsync(snapshot, "dark");
+        await using var princessStream = await renderer.RenderAsync(snapshot, "princess");
+        using var light = SKBitmap.Decode(lightStream);
+        using var dark = SKBitmap.Decode(darkStream);
+        using var princess = SKBitmap.Decode(princessStream);
+        Assert.AreEqual(CharacterSheetThemes.Find("light")!.Paper, light.GetPixel(55, 270));
+        Assert.AreEqual(CharacterSheetThemes.Find("dark")!.Paper, dark.GetPixel(55, 270));
+        Assert.AreNotEqual(light.GetPixel(55, 270), dark.GetPixel(55, 270));
+        Assert.AreEqual(CharacterSheetThemes.Find("princess")!.Paper, princess.GetPixel(55, 270));
+        Assert.AreNotEqual(dark.GetPixel(55, 270), princess.GetPixel(55, 270));
+        await Assert.ThrowsAsync<ArgumentException>(() => renderer.RenderAsync(snapshot, "unknown"));
+    }
+
     private sealed class RejectingHandler : HttpMessageHandler
     {
         public int Calls { get; private set; }

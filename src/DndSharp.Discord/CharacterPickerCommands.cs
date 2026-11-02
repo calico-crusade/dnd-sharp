@@ -63,10 +63,9 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
         if (action != "unclaim" && !session.CharacterIds.Contains(characterId)) { await ClearAsync("That character is no longer in this campaign. Run the command again."); return; }
         if (action == "sheet")
         {
-            var snapshot = await api.GetCharacterDetailsAsync(characterId, token);
-            await using var image = await renderer.RenderAsync(snapshot, token);
-            await FollowupWithFileAsync(image, "character-sheet.png", text: "Character sheet", ephemeral: false, allowedMentions: AllowedMentions.None);
-            await ClearAsync("Character sheet posted in this channel.");
+            var menu = new SelectMenuBuilder().WithCustomId($"character-sheet-theme:{Context.User.Id}:{campaignId}:{characterId}").WithPlaceholder("Choose a sheet theme");
+            foreach (var theme in CharacterSheetThemes.All) menu.AddOption(theme.Label, theme.Id);
+            await ShowAsync("Choose a theme for the character sheet.", new ComponentBuilder().WithSelectMenu(menu).Build());
             return;
         }
         if (action == "unclaim")
@@ -80,6 +79,20 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
             await ClearAsync(claimed ? "Character linked to your Discord account. New rolls will identify you without a notification."
                 : "That character is already claimed by another server member.");
         }
+    });
+
+    [ComponentInteraction("character-sheet-theme:*:*:*")]
+    public Task ChooseTheme(string owner, string campaign, string character, string[] values) => RunAsync(async token =>
+    {
+        EnsureOwner(owner);
+        if (!long.TryParse(campaign, out var campaignId) || !long.TryParse(character, out var characterId) || characterId <= 0 ||
+            values.Length != 1 || CharacterSheetThemes.Find(values[0]) is null) throw new ArgumentException();
+        var session = await GetSessionAsync(campaignId, token);
+        if (!session.CharacterIds.Contains(characterId)) { await ClearAsync("That character is no longer in this campaign. Run the command again."); return; }
+        var snapshot = await api.GetCharacterDetailsAsync(characterId, token);
+        await using var image = await renderer.RenderAsync(snapshot, values[0], token);
+        await FollowupWithFileAsync(image, "character-sheet.png", text: "Character sheet", ephemeral: false, allowedMentions: AllowedMentions.None);
+        await ClearAsync("Character sheet posted in this channel.");
     });
 
     [ComponentInteraction("character-choice-page:*:*:*:*")]

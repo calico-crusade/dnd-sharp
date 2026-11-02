@@ -5,6 +5,7 @@ using Discord.Interactions;
 using DndSharp.Dice.NumberGenerator;
 using DndSharp.Discord;
 using DndSharp.PokeDex;
+using DndSharp.PokeDex.Models.Pokemon;
 using DndSharp.Pokemon;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,27 @@ namespace DndSharp.Tests;
 [TestClass]
 public sealed class DiscordBotTests
 {
+    [TestMethod]
+    [DataRow("null", null)]
+    [DataRow("112", 112)]
+    public async Task PokemonWithOptionalBaseExperienceCanBeFetched(string experienceJson, int? expected)
+    {
+        using var fixture = new PokemonFixture();
+        fixture.Write("pokemon/10281/index.json", """
+            {
+              "id": 10281, "name": "dragonite-mega", "base_experience": EXPERIENCE, "weight": 2900,
+              "location_area_encounters": "", "species": { "url": "/api/v2/pokemon-species/149/" },
+              "sprites": {}
+            }
+            """.Replace("EXPERIENCE", experienceJson));
+        await using var provider = fixture.CreateServices();
+        var pokemon = await provider.GetRequiredService<IPokeApiService>().Fetch<PkPokemon>(10281);
+        Assert.IsNotNull(pokemon);
+        Assert.AreEqual(expected, pokemon.BaseExperience);
+        Assert.AreEqual("dragonite-mega", pokemon.Name);
+        Assert.AreEqual(2900, pokemon.Weight);
+    }
+
     [TestMethod]
     public async Task RollsCustomAndPresetDiceWithBreakdown()
     {
@@ -66,7 +88,7 @@ public sealed class DiscordBotTests
         Assert.AreEqual(0, interactions.SlashCommands.Single(command => command.Name == "character-claim").Parameters.Count);
         Assert.AreEqual(0, interactions.SlashCommands.Single(command => command.Name == "character-unclaim").Parameters.Count);
         Assert.AreEqual(0, interactions.SlashCommands.Single(command => command.Name == "character-sheet").Parameters.Count);
-        Assert.AreEqual(6, interactions.ComponentCommands.Count);
+        Assert.AreEqual(7, interactions.ComponentCommands.Count);
         Assert.AreEqual(0, interactions.SlashCommands.Single(command => command.Name == "campaign-unwatch").Parameters.Count);
         Assert.AreEqual(0, interactions.SlashCommands.Single(command => command.Name == "campaign-characters").Parameters.Count);
         Assert.IsFalse(interactions.SlashCommands.Single(command => command.Name == "campaign-duality-emoji").Parameters.Any(parameter => parameter.Name == "campaign"));
@@ -223,7 +245,7 @@ public sealed class DiscordBotTests
                 .BuildServiceProvider();
         }
 
-        private void Write(string name, string json)
+        public void Write(string name, string json)
         {
             var file = Path.Combine(path, "api", "v2", name.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);

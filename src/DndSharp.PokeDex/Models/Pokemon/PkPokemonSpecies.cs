@@ -45,7 +45,7 @@ public class PkPokemonSpecies : PkLocalizedBase
     public required PkResource GrowthRate { get; set; }
 
     [JsonPropertyName("habitat")]
-    public required PkResource Habitat { get; set; }
+    public PkResource? Habitat { get; set; }
 
     [JsonPropertyName("has_gender_differences")]
     public bool HasGenderDifferences { get; set; }

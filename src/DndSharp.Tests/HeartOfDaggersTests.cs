@@ -94,6 +94,39 @@ public sealed class HeartOfDaggersTests
     }
 
     [TestMethod]
+    public void ParsesInventoryItemsQuantitiesDescriptionsAndGold()
+    {
+        using var json = JsonDocument.Parse("""
+            { "success": true, "data": {
+              "fixed2": [{"t":"custom","text":"Torch","q":2},
+                         {"t":"core","key":"consumable:potion","q":3}],
+              "core_items": {"consumable:potion":{"name":"Potion","data":{"description":"Clear stress."}}},
+              "gold_coins":4,"gold_handfuls":1,"gold_bags":0,"gold_chests":0
+            }}
+            """);
+        var inventory = HeartOfDaggersClient.ParseInventory(json.RootElement)!;
+        Assert.AreEqual(2, inventory.Items.Count);
+        Assert.AreEqual(new CharacterInventoryItem("Torch", "", 2), inventory.Items[0]);
+        Assert.AreEqual(new CharacterInventoryItem("Potion", "Clear stress.", 3), inventory.Items[1]);
+        Assert.AreEqual(4, inventory.Coins);
+        Assert.AreEqual(1, inventory.Handfuls);
+    }
+
+    [TestMethod]
+    public void ExtractsTransformationDescriptionAndAbilities()
+    {
+        const string html = """
+            <div class="panel-card" data-acc-title="Transformation">
+              <button data-dhc-json="{&quot;name&quot;:&quot;Vampire&quot;,&quot;description&quot;:&quot;Undead&quot;,&quot;feats&quot;:[{&quot;name&quot;:&quot;Fangs&quot;,&quot;text&quot;:&quot;Bite&quot;}],&quot;nonce&quot;:&quot;secret&quot;}"></button>
+            </div>
+            """;
+        var features = HeartOfDaggersClient.ParseFeatures(html);
+        CollectionAssert.Contains(features.ToArray(), new CharacterFeature("Transformation", "Vampire", "Undead"));
+        CollectionAssert.Contains(features.ToArray(), new CharacterFeature("Transformation", "Fangs", "Bite"));
+        Assert.IsFalse(JsonSerializer.Serialize(features).Contains("secret", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void HistoryTrackerSkipsBaselineDuplicatesAndNonHistoryEvents()
     {
         var tracker = new CampaignHistoryTracker(42);
@@ -140,7 +173,8 @@ public sealed class HeartOfDaggersTests
     [TestMethod]
     public async Task CharacterSnapshotIncludesSheetStateWithoutCredentials()
     {
-        using var http = new HttpClient(new CharacterHandler()) { BaseAddress = new Uri("https://heartofdaggers.com/") };
+        var handler = new CharacterHandler();
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://heartofdaggers.com/") };
         var characters = await new HeartOfDaggersClient(http).GetCampaignCharacterDetailsAsync(42);
         Assert.AreEqual(1, characters.Count);
         var result = characters[0];
@@ -148,6 +182,10 @@ public sealed class HeartOfDaggersTests
         Assert.AreEqual(2, result.SheetState!.Value.GetProperty("strengthMod").GetInt32());
         Assert.IsFalse(result.SheetState.Value.TryGetProperty("nonce", out _));
         Assert.IsFalse(result.SheetState.Value.GetProperty("nested").TryGetProperty("authToken", out _));
+        Assert.AreEqual("Torch", result.Inventory!.Items[0].Name);
+        StringAssert.Contains(handler.InventoryRequest!, "action=dhc_inventory_get");
+        StringAssert.Contains(handler.InventoryRequest!, "post_id=12");
+        Assert.IsFalse(JsonSerializer.Serialize(result).Contains("secret", StringComparison.Ordinal));
     }
 
     private const string CampaignHtml = """
@@ -180,19 +218,26 @@ public sealed class HeartOfDaggersTests
 
     private sealed class CharacterHandler : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        public string? InventoryRequest { get; private set; }
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
+            if (request.RequestUri!.AbsolutePath == "/wp-admin/admin-ajax.php")
+            {
+                InventoryRequest = await request.Content!.ReadAsStringAsync(token);
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"success":true,"data":{"fixed2":[{"t":"custom","text":"Torch","q":1}]}}""") };
+            }
             var body = request.RequestUri!.AbsolutePath switch
             {
                 "/wp-json/hod-owlbear/v1/campaigns/42/characters" => """{"characters":[{"id":12}]}""",
                 "/wp-json/hod-owlbear/v1/characters/12" => """{"character":{"id":12,"name":"Test","fullSheetUrl":"https://heartofdaggers.com/character/test-1/"}}""",
-                "/character/test-1/" => """<script>window.DH_CHARACTER_STATE = {};</script><script>window.DH_CHARACTER_STATE = {"strengthMod":2,"nonce":"secret","nested":{"authToken":"secret"}};</script>""",
+                "/character/test-1/" => """<script>window.DH_CHARACTER_STATE = {};</script><script>window.DH_CHARACTER_STATE = {"strengthMod":2,"nonce":"secret","nested":{"authToken":"secret"}}; window.DHC_INV = {nonce:'secret',postId:12};</script>""",
                 _ => throw new InvalidOperationException("Unexpected request.")
             };
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(body, Encoding.UTF8)
-            });
+            };
         }
     }
 }

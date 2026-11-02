@@ -9,7 +9,7 @@ public class PkLocation : PkLocalizedBase
     public PkResource[] Areas { get; set; } = [];
 
     [JsonPropertyName("region")]
-    public required PkResource Region { get; set; }
+    public required PkResource? Region { get; set; }
 
     [JsonPropertyName("game_indices")]
     public GameIndex[] GameIndices { get; set; } = [];

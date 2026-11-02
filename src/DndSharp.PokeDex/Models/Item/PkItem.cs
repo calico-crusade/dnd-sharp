@@ -14,8 +14,8 @@ public class PkItem : PkLocalizedBase
     [JsonPropertyName("category")]
     public PkResource? Category { get; set; }
 
-    [JsonPropertyName("cost")]
-    public int Cost { get; set; }
+    [JsonPropertyName("prices")]
+    public Price[] Prices { get; set; } = [];
 
     [JsonPropertyName("effect_entries")]
     public EffectEntry[] Effects { get; set; } = [];
@@ -30,10 +30,10 @@ public class PkItem : PkLocalizedBase
     public PkResource? FlingEffect { get; set; }
 
     [JsonPropertyName("held_by_pokemon")]
-    public PkResource[] HeldByPokemon { get; set; } = [];
+    public HeldPokemon[] HeldByPokemon { get; set; } = [];
 
     [JsonPropertyName("machines")]
-    public PkResource[] Machines { get; set; } = [];
+    public Machine[] Machines { get; set; } = [];
 
     [JsonPropertyName("sprites")]
     public required SpritesVals Sprites { get; set; }
@@ -55,7 +55,7 @@ public class PkItem : PkLocalizedBase
 
     public class FlavorText : IPkResource
     {
-        [JsonPropertyName("flavor_text")]
+        [JsonPropertyName("text")]
         public required string Value { get; set; }
 
         [JsonPropertyName("language")]
@@ -78,5 +78,47 @@ public class PkItem : PkLocalizedBase
 
         [JsonPropertyName("generation")]
         public required PkResource Resource { get; set; }
+    }
+
+    public class Price
+    {
+        [JsonPropertyName("purchase_price")]
+        public int? PurchasePrice { get; set; }
+
+        [JsonPropertyName("sell_price")]
+        public int? SellPrice { get; set; }
+
+        [JsonPropertyName("currency")]
+        public required PkResource Currency { get; set; }
+
+        [JsonPropertyName("version_group")]
+        public required PkResource VersionGroup { get; set; }
+    }
+
+    public class HeldPokemon : IPkResource
+    {
+        [JsonPropertyName("pokemon")]
+        public required PkResource Resource { get; set; }
+
+        [JsonPropertyName("version_details")]
+        public HeldVersion[] Versions { get; set; } = [];
+    }
+
+    public class HeldVersion : IPkResource
+    {
+        [JsonPropertyName("rarity")]
+        public int Rarity { get; set; }
+
+        [JsonPropertyName("version")]
+        public required PkResource Resource { get; set; }
+    }
+
+    public class Machine : IPkResource
+    {
+        [JsonPropertyName("machine")]
+        public required PkResource Resource { get; set; }
+
+        [JsonPropertyName("version_group")]
+        public required PkResource VersionGroup { get; set; }
     }
 }

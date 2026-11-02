@@ -9,7 +9,7 @@ public class PkRegion : PkLocalizedBase
     public PkResource[] Locations { get; set; } = [];
 
     [JsonPropertyName("main_generation")]
-    public required PkResource MainGeneration { get; set; }
+    public PkResource? MainGeneration { get; set; }
 
     [JsonPropertyName("pokedexes")]
     public PkResource[] Pokedexes { get; set; } = [];

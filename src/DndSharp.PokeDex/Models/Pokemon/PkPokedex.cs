@@ -12,7 +12,7 @@ public class PkPokedex : PkLocalizedDescBase
     public Entry[] Entries { get; set; } = [];
 
     [JsonPropertyName("region")]
-    public required PkResource Region { get; set; }
+    public PkResource? Region { get; set; }
 
     [JsonPropertyName("version_groups")]
     public PkResource[] Versions { get; set; } = [];
