@@ -4,6 +4,7 @@ public static class DiExtensions
 {
     public static IServiceCollection AddPokeApi(this IServiceCollection resolver)
     {
-        return resolver.AddSingleton<IPokeApiService, PokeApiService>();
+        return resolver.AddSingleton<IPokeApiService, PokeApiService>()
+            .AddSingleton<IPokeApiDataInitializer, PokeApiDataInitializer>();
     }
 }

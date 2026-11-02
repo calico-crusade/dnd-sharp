@@ -14,7 +14,7 @@ public class RollResult(DiceResult[] results) : IReadOnlyCollection<DiceResult>
     /// </summary>
     /// <param name="type">The damage type</param>
     /// <returns>The dice results</returns>
-    public IEnumerable<DiceResult> this[DamageType type] => ByDamaga(type);
+    public IEnumerable<DiceResult> this[DamageType type] => ByDamage(type);
 
     /// <summary>
     /// The total result of all the dice rolls in this result
@@ -45,7 +45,7 @@ public class RollResult(DiceResult[] results) : IReadOnlyCollection<DiceResult>
     /// </summary>
     /// <param name="type">The damage type</param>
     /// <returns>The dice results</returns>
-    public IEnumerable<DiceResult> ByDamaga(DamageType type)
+    public IEnumerable<DiceResult> ByDamage(DamageType type)
     {
         return results.Where(t => t.Dice.Type == type);
     }

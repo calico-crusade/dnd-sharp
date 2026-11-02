@@ -12,19 +12,19 @@ public class TranslateSettings
     /// What is considered a low pokemon stat value
     /// </summary>
     [JsonPropertyName("lowStat")]
-    public double LowStat { get; set; } = 90;
+    public double LowStat { get; set; } = 40;
 
     /// <summary>
     /// What is considered a low D&D ability score value
     /// </summary>
     [JsonPropertyName("lowScore")]
-    public double LowScore { get; set; } = 10;
+    public double LowScore { get; set; } = 5;
 
     /// <summary>
     /// What is considered an elite pokemon stat value
     /// </summary>
     [JsonPropertyName("highStat")]
-    public double HighStat { get; set; } = 210;
+    public double HighStat { get; set; } = 350;
 
     /// <summary>
     /// What is considered an elite D&D ability score value

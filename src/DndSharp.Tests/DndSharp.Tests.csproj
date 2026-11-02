@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -16,14 +16,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="17.12.6" />
-    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="1.4.3" />
-    <PackageReference Include="MSTest" Version="3.6.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.2" />
+    <PackageReference Include="MSTest" Version="4.5.2" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DndSharp.PokeDex\DndSharp.PokeDex.csproj" />
+    <ProjectReference Include="..\DndSharp.Discord\DndSharp.Discord.csproj" />
+    <ProjectReference Include="..\DndSharp.HeartOfDaggers\DndSharp.HeartOfDaggers.csproj" />
     <ProjectReference Include="..\DndSharp\DndSharp.csproj" />
   </ItemGroup>
 

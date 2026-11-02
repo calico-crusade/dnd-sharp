@@ -1,12 +1,12 @@
-﻿using System.Diagnostics;
+﻿using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
+using Spectre.Console;
+using System.Diagnostics;
 
 namespace DndSharp.Cli.Verbs;
 
 using Pokemon;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
-using Spectre.Console;
 
 public enum StatType
 {

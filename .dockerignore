@@ -1,0 +1,13 @@
+.git
+.github
+**/bin/
+**/obj/
+**/TestResults/
+**/.env
+**/.env.*
+**/*.env
+**/*.sqlite3*
+**/sixlabors.lic
+**/*.user
+**/*.suo
+pokeapi-data/

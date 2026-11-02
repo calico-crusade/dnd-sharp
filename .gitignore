@@ -418,3 +418,12 @@ FodyWeavers.xsd
 *.msp
 
 launchSettings.json
+
+# Local SQLite data
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+
+# PokéAPI data checkout maintained by the bot
+pokeapi-data/

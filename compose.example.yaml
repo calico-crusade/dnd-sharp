@@ -1,0 +1,19 @@
+services:
+  bot:
+    image: ${BOT_IMAGE:-ghcr.io/calico-crusade/dnd-sharp:latest}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      # These paths must remain inside the corresponding persistent volumes.
+      Discord__DatabasePath: /var/lib/dndsharp/campaigns.sqlite3
+      HeartOfDaggers__SessionPath: /var/lib/dndsharp/heart-of-daggers-session.json
+      PokeApi__BasePath: /var/lib/pokeapi/api-data/data
+    volumes:
+      - bot-data:/var/lib/dndsharp
+      - pokeapi-data:/var/lib/pokeapi
+
+volumes:
+  bot-data:
+  pokeapi-data:

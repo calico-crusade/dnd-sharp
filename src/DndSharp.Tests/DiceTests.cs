@@ -49,8 +49,8 @@ public sealed class DiceTests
             Assert.AreEqual(dice, parsed, $"Failed to parse {expected}");
         }
 
-        Assert.ThrowsException<ArgumentException>(() => Die.Parse(string.Empty));
-        Assert.ThrowsException<FormatException>(() => Die.Parse("InvalidDiceFormat"));
+        Assert.Throws<ArgumentException>(() => Die.Parse(string.Empty));
+        Assert.Throws<FormatException>(() => Die.Parse("InvalidDiceFormat"));
 
         var result = Die.TryParse("2D6+3 (fire)", out Die parsedDice);
         Assert.IsTrue(result, "Failed to parse valid dice format");

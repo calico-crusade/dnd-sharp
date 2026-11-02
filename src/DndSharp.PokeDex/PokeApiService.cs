@@ -59,7 +59,8 @@ internal class PokeApiService(
             !resource.StartsWith("api\\v2\\"))
             resource = $"api/v2/{resource}";
 
-        var parts = PathSplit(BasePath).Concat(PathSplit(resource)).ToArray();
+        // Keep BasePath intact: splitting it loses Unix roots and Windows drive-root separators.
+        var parts = new[] { BasePath }.Concat(PathSplit(resource)).ToArray();
         if (!parts.Last().Equals("index.json") && append)
             parts = [.. parts, "index.json"];
 

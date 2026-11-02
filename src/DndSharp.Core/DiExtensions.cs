@@ -4,6 +4,7 @@ using FuzzySharp.Extractor;
 using FuzzySharp.SimilarityRatio;
 using FuzzySharp.SimilarityRatio.Scorer;
 using FuzzySharp.SimilarityRatio.Scorer.Composite;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Reflection;
 
@@ -13,11 +14,11 @@ public static class DiExtensions
 {
     private const int DEFAULT_FUZZY_SCORE_CUTOFF = 50;
 
-    public static IServiceCollection AddCoreServices(this IServiceCollection services)
+    public static IServiceCollection AddCoreServices(this IServiceCollection services, Action<IConfigurationBuilder>? bob = null)
     {
         return services
             .AddJson()
-            .AddAppSettings()
+            .AddAppSettings(bob)
             .AddSerilog();
     }
 

@@ -90,7 +90,7 @@ public class DndStats
     /// <returns>The scaled value</returns>
     internal int Scale(double? stat)
     {
-        if (stat is null)
+        if (stat is null || _stats is null)
             return 0;
 
         var settings = _settings ?? new();
@@ -98,7 +98,7 @@ public class DndStats
             (settings.HighStat - settings.LowStat);
         var raw = settings.LowScore + slope * (stat.Value - settings.LowStat);
         var rounded = Math.Round(raw, MidpointRounding.AwayFromZero);
-        return (int)Math.Max(settings.MinScore, Math.Min(settings.MaxScore, rounded));
+        return (int)Math.Clamp(rounded, settings.MinScore, settings.MaxScore);
     }
 
     /// <summary>
@@ -122,6 +122,13 @@ public class DndStats
     {
         if (_stats is null) return 0;
 
-        return Scale(0.5 * (_stats.SpecialAttack + _stats.SpecialDefense));
+        var settings = _settings ?? new();
+        double[] stats = [_stats.Attack, _stats.Defense, _stats.SpecialAttack, _stats.SpecialDefense, _stats.Speed];
+        var ordered = stats.Select(t => Scale(t)).OrderByDescending(s => s);
+        double[] scales = [0.5, 0.45, 0.25];
+
+        int i = -1;
+        var total = ordered.Take(scales.Length).Sum(t => t / settings.HighScore * scales[++i]);
+        return (int)Math.Clamp(total * settings.HighScore, settings.MinScore, settings.MaxScore);
     }
 }
