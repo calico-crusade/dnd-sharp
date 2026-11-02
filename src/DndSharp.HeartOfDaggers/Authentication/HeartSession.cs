@@ -20,7 +20,11 @@ public sealed class HeartSessionTransport : IDisposable
             UseCookies = true,
             AllowAutoRedirect = false,
             AutomaticDecompression = DecompressionMethods.All
-        }) { BaseAddress = Site, Timeout = TimeSpan.FromSeconds(30) };
+        })
+        {
+            BaseAddress = Site,
+            Timeout = TimeSpan.FromSeconds(30)
+        };
     }
 
     public void Dispose() => Http.Dispose();
@@ -48,7 +52,8 @@ public sealed class HeartSession(
         await gate.WaitAsync(token);
         try
         {
-            if (initialized) return;
+            if (initialized)
+                return;
             if (!Automatic)
             {
                 var cookie = configuration["HeartOfDaggers:Cookie"];
@@ -60,7 +65,8 @@ public sealed class HeartSession(
                     if (index > 0 && part[..index].StartsWith("wordpress_logged_in_", StringComparison.Ordinal))
                         transport.Cookies.Add(HeartSessionTransport.Site, new Cookie(part[..index], part[(index + 1)..], "/") { Secure = true, HttpOnly = true });
                 }
-                if (!HasLoginCookie()) throw new InvalidOperationException("HeartOfDaggers:Cookie must include the WordPress login cookie.");
+                if (!HasLoginCookie())
+                    throw new InvalidOperationException("HeartOfDaggers:Cookie must include the WordPress login cookie.");
                 initialized = true;
                 Interlocked.Increment(ref generation);
                 return;
@@ -72,7 +78,10 @@ public sealed class HeartSession(
             initialized = true;
             Interlocked.Increment(ref generation);
         }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     /// <summary>Refresh once if the site rejected a stale session. Returns false for authorization failures.</summary>
@@ -81,15 +90,21 @@ public sealed class HeartSession(
         await gate.WaitAsync(token);
         try
         {
-            if (Generation != observedGeneration) return true;
-            if (!Automatic) return false;
-            if (HasLoginCookie() && await IsValidAsync(token)) return false;
+            if (Generation != observedGeneration)
+                return true;
+            if (!Automatic)
+                return false;
+            if (HasLoginCookie() && await IsValidAsync(token))
+                return false;
             await SignInAndSaveAsync(token);
             initialized = true;
             Interlocked.Increment(ref generation);
             return true;
         }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     private bool HasLoginCookie() => transport.Cookies.GetCookies(HeartSessionTransport.Site).Cast<Cookie>()
@@ -108,8 +123,12 @@ public sealed class HeartSession(
     {
         logger.LogInformation("Signing in to Heart of Daggers using the bot mailbox.");
         foreach (Cookie cookie in transport.Cookies.GetCookies(HeartSessionTransport.Site))
-            if (cookie.Name.StartsWith("wordpress_logged_in_", StringComparison.Ordinal)) cookie.Expired = true;
-        try { await signIn.SignInAsync(token); }
+            if (cookie.Name.StartsWith("wordpress_logged_in_", StringComparison.Ordinal))
+                cookie.Expired = true;
+        try
+        {
+            await signIn.SignInAsync(token);
+        }
         catch (MailboxSetupException ex)
         {
             logger.LogWarning("Heart of Daggers mailbox setup failed ({Failure}): {Reason}", ex.Failure, ex.Message);
@@ -122,18 +141,23 @@ public sealed class HeartSession(
 
     private async Task LoadAsync(CancellationToken token)
     {
-        if (!File.Exists(SessionPath)) return;
+        if (!File.Exists(SessionPath))
+            return;
         await using var file = File.OpenRead(SessionPath);
         using var document = await JsonDocument.ParseAsync(file, cancellationToken: token);
-        if (document.RootElement.ValueKind != JsonValueKind.Object) return;
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+            return;
         var saved = document.RootElement.Deserialize<SavedSession>();
-        if (saved is null || !string.Equals(saved.Email, configuration["HeartOfDaggers:Email"]?.Trim(), StringComparison.OrdinalIgnoreCase)) return;
+        if (saved is null || !string.Equals(saved.Email, configuration["HeartOfDaggers:Email"]?.Trim(), StringComparison.OrdinalIgnoreCase))
+            return;
         foreach (var cookie in saved.Cookies ?? [])
         {
             if (!cookie.Name.StartsWith("wordpress_logged_in_", StringComparison.Ordinal) ||
-                (cookie.Expires != DateTime.MinValue && cookie.Expires.ToUniversalTime() <= DateTime.UtcNow)) continue;
+                (cookie.Expires != DateTime.MinValue && cookie.Expires.ToUniversalTime() <= DateTime.UtcNow))
+                continue;
             var restored = new Cookie(cookie.Name, cookie.Value, "/") { Secure = true, HttpOnly = true };
-            if (cookie.Expires != DateTime.MinValue) restored.Expires = cookie.Expires;
+            if (cookie.Expires != DateTime.MinValue)
+                restored.Expires = cookie.Expires;
             transport.Cookies.Add(HeartSessionTransport.Site, restored);
         }
     }
@@ -149,12 +173,16 @@ public sealed class HeartSession(
         try
         {
             var options = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write, Share = FileShare.None, Options = FileOptions.Asynchronous };
-            if (!OperatingSystem.IsWindows()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            if (!OperatingSystem.IsWindows())
+                options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
             await using (var file = new FileStream(temporary, options))
                 await JsonSerializer.SerializeAsync(file, new SavedSession(configuration["HeartOfDaggers:Email"]!.Trim(), cookies), cancellationToken: token);
             File.Move(temporary, path, overwrite: true);
         }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
     }
 
     private sealed record SavedCookie(string Name, string Value, DateTime Expires);

@@ -36,20 +36,30 @@ public sealed class CampaignCommands(CampaignSubscriptions subscriptions, HeartO
                 var safeName = global::Discord.Format.Sanitize(CharacterPickerCommands.Label(name, item.CampaignSlug));
                 return $"• {safeName}";
             }
-            catch (Exception ex) when (ex is not OperationCanceledException) { return $"• {item.CampaignSlug}"; }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return $"• {item.CampaignSlug}";
+            }
         }));
         var suffix = items.Count > 30 ? $"\n…and {items.Count - 30} more." : "";
         var result = items.Count == 0
             ? "This channel is not watching any campaigns."
             : $"Watched campaigns:\n{string.Join("\n", names)}{suffix}";
-        await ModifyOriginalResponseAsync(message => { message.Content = result.Length > 1900 ? result[..1900] : result; message.AllowedMentions = AllowedMentions.None; });
+        await ModifyOriginalResponseAsync(message =>
+        {
+            message.Content = result.Length > 1900 ? result[..1900] : result;
+            message.AllowedMentions = AllowedMentions.None;
+        });
     });
 
     private async Task Execute(Func<CancellationToken, Task> action)
     {
         await DeferAsync(ephemeral: true);
         using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(3));
-        try { await action(timeout.Token); }
+        try
+        {
+            await action(timeout.Token);
+        }
         catch (ArgumentException)
         {
             await ModifyOriginalResponseAsync(message => message.Content = "Check the campaign URL and the supplied command options, then try again.");

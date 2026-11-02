@@ -105,8 +105,16 @@ public sealed class HeartAuthenticationTests
             Prepared = true;
             return Task.FromResult<ILoginCodeAttempt>(this);
         }
-        public Task<string> WaitForCodeAsync(CancellationToken token) { CodeRequested = true; return Task.FromResult("123456"); }
-        public ValueTask DisposeAsync() { Disposed = true; return ValueTask.CompletedTask; }
+        public Task<string> WaitForCodeAsync(CancellationToken token)
+        {
+            CodeRequested = true;
+            return Task.FromResult("123456");
+        }
+        public ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class LoginHandler(FakeCodeProvider provider) : HttpMessageHandler
@@ -117,7 +125,8 @@ public sealed class HeartAuthenticationTests
             Requests++;
             var path = request.RequestUri!.AbsolutePath;
             string body;
-            if (path == "/signin/") body = """<script>var pwlessObj = {"ajaxNonce":"fake-nonce"};</script>""";
+            if (path == "/signin/")
+                body = """<script>var pwlessObj = {"ajaxNonce":"fake-nonce"};</script>""";
             else if (path == "/wp-admin/admin-ajax.php")
             {
                 Assert.IsTrue(provider.Prepared, "Mailbox baseline must be captured before sending the login email.");
@@ -134,7 +143,8 @@ public sealed class HeartAuthenticationTests
                 StringAssert.Contains(form, "auth_method=code");
                 return new HttpResponseMessage(HttpStatusCode.Redirect);
             }
-            else throw new InvalidOperationException("Unexpected request.");
+            else
+                throw new InvalidOperationException("Unexpected request.");
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8) };
         }
     }

@@ -42,8 +42,14 @@ public sealed class DiscordBot(
             return false;
         }
 
-        try { await services.GetRequiredService<IPokeApiDataInitializer>().PrepareAsync(token); }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { return true; }
+        try
+        {
+            await services.GetRequiredService<IPokeApiDataInitializer>().PrepareAsync(token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return true;
+        }
 
         StoppingToken = token;
         var registered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -52,7 +58,8 @@ public sealed class DiscordBot(
         async Task Ready()
         {
             // Ready also fires on reconnect; registration only needs to happen once per run.
-            if (Interlocked.Exchange(ref registrationStarted, 1) != 0) return;
+            if (Interlocked.Exchange(ref registrationStarted, 1) != 0)
+                return;
 
             try
             {
@@ -116,7 +123,8 @@ public sealed class DiscordBot(
 
     private async Task CommandExecuted(SlashCommandInfo command, IInteractionContext context, IResult result)
     {
-        if (result.IsSuccess) return;
+        if (result.IsSuccess)
+            return;
         logger.LogWarning("Discord command {Command} failed: {Error}.", command.Name, result.ErrorReason);
         const string message = "The command could not be completed. Check your options and try again.";
         try

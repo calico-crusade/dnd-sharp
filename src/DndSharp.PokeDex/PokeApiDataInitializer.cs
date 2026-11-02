@@ -62,7 +62,10 @@ public sealed class PokeApiDataInitializer : IPokeApiDataInitializer
             else
                 await CloneAsync(repoPath, dataPath, timeout.Token);
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (OperationCanceledException)
         {
             logger.LogWarning("PokéAPI data setup timed out; the bot will continue with any existing data.");
@@ -92,7 +95,8 @@ public sealed class PokeApiDataInitializer : IPokeApiDataInitializer
             if (result.ExitCode != 0 || !HasData(Path.Combine(stage, "data")))
                 throw new InvalidOperationException("Git did not produce a usable PokéAPI checkout.");
             Directory.Move(stage, Path.GetFullPath(repoPath));
-            if (!HasData(dataPath)) throw new InvalidOperationException("The PokéAPI data directory is missing.");
+            if (!HasData(dataPath))
+                throw new InvalidOperationException("The PokéAPI data directory is missing.");
             logger.LogInformation("PokéAPI data is ready.");
         }
         finally
@@ -106,7 +110,8 @@ public sealed class PokeApiDataInitializer : IPokeApiDataInitializer
     {
         if (!Directory.Exists(stage) || !SamePath(Path.GetDirectoryName(Path.GetFullPath(stage))!, parent) ||
             !Path.GetFileName(stage).StartsWith($".{repoName}.clone-", StringComparison.Ordinal) ||
-            (File.GetAttributes(stage) & FileAttributes.ReparsePoint) != 0) return;
+            (File.GetAttributes(stage) & FileAttributes.ReparsePoint) != 0)
+            return;
 
         // Git marks object files read-only on Windows. Never follow reparse points
         // while clearing those attributes inside our verified staging directory.
@@ -116,7 +121,8 @@ public sealed class PokeApiDataInitializer : IPokeApiDataInitializer
             foreach (var entry in Directory.EnumerateFileSystemEntries(stage, "*", options))
             {
                 var attributes = File.GetAttributes(entry);
-                if ((attributes & FileAttributes.ReadOnly) != 0) File.SetAttributes(entry, attributes & ~FileAttributes.ReadOnly);
+                if ((attributes & FileAttributes.ReadOnly) != 0)
+                    File.SetAttributes(entry, attributes & ~FileAttributes.ReadOnly);
             }
         }
         Directory.Delete(stage, recursive: true);
@@ -162,7 +168,8 @@ public sealed class PokeApiDataInitializer : IPokeApiDataInitializer
     private bool IsExpectedRemote(string remote)
     {
         var value = remote.Trim().TrimEnd('/');
-        if (value.Equals(repositoryUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)) return true;
+        if (value.Equals(repositoryUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+            return true;
         if (repositoryUrl != OfficialRepository)
             return Path.IsPathFullyQualified(value) && Path.IsPathFullyQualified(repositoryUrl) && SamePath(value, repositoryUrl);
         return value.Equals("https://github.com/PokeAPI/api-data", StringComparison.OrdinalIgnoreCase) ||
@@ -178,14 +185,25 @@ public sealed class PokeApiDataInitializer : IPokeApiDataInitializer
     {
         var start = new ProcessStartInfo("git") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
         start.Environment["GIT_TERMINAL_PROMPT"] = "0";
-        foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        foreach (var argument in arguments)
+            start.ArgumentList.Add(argument);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Git could not be started.");
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
-        try { await process.WaitForExitAsync(token); }
+        try
+        {
+            await process.WaitForExitAsync(token);
+        }
         catch (OperationCanceledException)
         {
-            try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            try
+            {
+                if (!process.HasExited)
+                    process.Kill(entireProcessTree: true);
+            }
+            catch (InvalidOperationException)
+            {
+            }
             await process.WaitForExitAsync(CancellationToken.None);
             throw;
         }

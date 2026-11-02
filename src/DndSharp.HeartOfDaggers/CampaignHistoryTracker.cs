@@ -15,14 +15,16 @@ public sealed class CampaignHistoryTracker(long campaignId)
 
     public void Seed(IEnumerable<JsonElement> history)
     {
-        foreach (var item in history) TryObserve(item, out _);
+        foreach (var item in history)
+            TryObserve(item, out _);
         HasBaseline = true;
     }
 
     public bool TryObserve(JsonElement entry, out CampaignHistoryItem? item)
     {
         item = null;
-        if (entry.ValueKind != JsonValueKind.Object) return false;
+        if (entry.ValueKind != JsonValueKind.Object)
+            return false;
         var kind = String(entry, "type") ?? String(entry, "rollKind") ?? "";
         var action = String(entry, "action") ?? String(entry, "spotlightAction") ?? "";
         if (kind.Equals("inventory_sync", StringComparison.OrdinalIgnoreCase) ||
@@ -32,7 +34,8 @@ public sealed class CampaignHistoryTracker(long campaignId)
         var id = String(entry, "id");
         if (string.IsNullOrWhiteSpace(id))
             id = "sha256:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(entry.GetRawText())));
-        if (!seen.Add(id)) return false;
+        if (!seen.Add(id))
+            return false;
         item = new CampaignHistoryItem(campaignId, id, entry.Clone());
         return true;
     }

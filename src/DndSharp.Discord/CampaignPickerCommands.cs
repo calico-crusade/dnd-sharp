@@ -10,7 +10,10 @@ using Microsoft.Extensions.Logging;
 
 namespace DndSharp.Discord;
 
-public enum CampaignPickerAction { Unwatch, Emoji, Settings, Characters }
+public enum CampaignPickerAction
+{
+    Unwatch, Emoji, Settings, Characters
+}
 
 public sealed record CampaignPickerRequest(ulong GuildId, ulong ChannelId, ulong UserId, CampaignPickerAction Action,
     DateTimeOffset Expires, DualityOutcome Outcome = default, string? Display = null, bool? Enabled = null, int? Difficulty = null,
@@ -22,7 +25,9 @@ public sealed class CampaignPickerState
     private readonly ConcurrentDictionary<string, CampaignPickerRequest> requests = new();
     public string Add(CampaignPickerRequest request)
     {
-        foreach (var pair in requests) if (pair.Value.Expires <= DateTimeOffset.UtcNow) requests.TryRemove(pair.Key, out _);
+        foreach (var pair in requests)
+        if (pair.Value.Expires <= DateTimeOffset.UtcNow)
+            requests.TryRemove(pair.Key, out _);
         var id = Guid.NewGuid().ToString("N");
         requests[id] = request;
         return id;
@@ -30,7 +35,11 @@ public sealed class CampaignPickerState
     public CampaignPickerRequest? Get(string id) => requests.TryGetValue(id, out var item) && item.Expires > DateTimeOffset.UtcNow ? item : null;
     public bool Take(string id, out CampaignPickerRequest? item)
     {
-        if (!requests.TryRemove(id, out item) || item.Expires <= DateTimeOffset.UtcNow) { item = null; return false; }
+        if (!requests.TryRemove(id, out item) || item.Expires <= DateTimeOffset.UtcNow)
+        {
+            item = null;
+            return false;
+        }
         return true;
     }
 }
@@ -80,14 +89,23 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
             }
             display = ServerEmojiResolver.Resolve(display, emotes, strict: true);
             usesExternal = ServerEmojiResolver.UsesExternalGuildEmoji(display, emotes, Context.Guild.Id);
-            if (display.Length > 500) throw new EmojiResolutionException("The expanded emoji display is too long. Use fewer custom emoji.");
+            if (display.Length > 500)
+                throw new EmojiResolutionException("The expanded emoji display is too long. Use fewer custom emoji.");
             _ = DualityDisplay.SetEmoji(new DualityDisplaySettings(), outcome, display);
         }
         var request = new CampaignPickerRequest(Context.Guild.Id, Context.Channel.Id, Context.User.Id, action,
             DateTimeOffset.UtcNow.AddMinutes(10), outcome, display, enabled, difficulty, usesExternal);
         var campaigns = await AvailableAsync(request, token);
-        if (campaigns.Count == 0) { await ClearAsync(EmptyMessage(request)); return; }
-        if (campaigns.Count == 1) { await ExecuteAsync(request, campaigns[0], token); return; }
+        if (campaigns.Count == 0)
+        {
+            await ClearAsync(EmptyMessage(request));
+            return;
+        }
+        if (campaigns.Count == 1)
+        {
+            await ExecuteAsync(request, campaigns[0], token);
+            return;
+        }
         var id = state.Add(request);
         await ShowPickerAsync(id, request, campaigns, 0, token);
     }, component: false);
@@ -96,10 +114,19 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
     public Task Select(string id, string[] values) => RunAsync(async token =>
     {
         var request = Validate(id);
-        if (values.Length != 1 || !long.TryParse(values[0], out var campaignId)) throw new ArgumentException();
+        if (values.Length != 1 || !long.TryParse(values[0], out var campaignId))
+            throw new ArgumentException();
         var campaign = (await AvailableAsync(request, token)).FirstOrDefault(item => item.CampaignId == campaignId);
-        if (campaign is null) { await ClearAsync("That campaign is no longer watched. Run the command again."); return; }
-        if (!state.Take(id, out _)) { await ClearAsync("This selection has expired. Run the command again."); return; }
+        if (campaign is null)
+        {
+            await ClearAsync("That campaign is no longer watched. Run the command again.");
+            return;
+        }
+        if (!state.Take(id, out _))
+        {
+            await ClearAsync("This selection has expired. Run the command again.");
+            return;
+        }
         await ExecuteAsync(request, campaign, token);
     });
 
@@ -107,9 +134,14 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
     public Task Page(string id, string page) => RunAsync(async token =>
     {
         var request = Validate(id);
-        if (!int.TryParse(page, out var index)) throw new ArgumentException();
+        if (!int.TryParse(page, out var index))
+            throw new ArgumentException();
         var campaigns = await AvailableAsync(request, token);
-        if (campaigns.Count == 0) { await ClearAsync(EmptyMessage(request)); return; }
+        if (campaigns.Count == 0)
+        {
+            await ClearAsync(EmptyMessage(request));
+            return;
+        }
         await ShowPickerAsync(id, request, campaigns, index, token);
     });
 
@@ -139,8 +171,15 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
         var selected = ordered.Skip(index * PageSize).Take(PageSize).ToArray();
         var names = await Task.WhenAll(selected.Select(async item =>
         {
-            try { var session = await api.GetCampaignAsync(item.CampaignSlug, token); return session.Id == item.CampaignId ? session.Name : item.CampaignSlug; }
-            catch (Exception ex) when (ex is not OperationCanceledException) { return item.CampaignSlug; }
+            try
+            {
+                var session = await api.GetCampaignAsync(item.CampaignSlug, token);
+                return session.Id == item.CampaignId ? session.Name : item.CampaignSlug;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return item.CampaignSlug;
+            }
         }));
         var menu = new SelectMenuBuilder().WithCustomId($"campaign-picker:{id}").WithPlaceholder("Choose a campaign");
         for (var i = 0; i < selected.Length; i++)
@@ -187,14 +226,16 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
             case CampaignPickerAction.Characters:
                 await ShowCharactersAsync(request, campaign, token);
                 break;
-            default: throw new ArgumentException("Unknown action.");
+            default:
+                throw new ArgumentException("Unknown action.");
         }
     }
 
     private async Task ShowCharactersAsync(CampaignPickerRequest request, CampaignSubscription campaign, CancellationToken token)
     {
         var session = await api.GetCampaignAsync(campaign.CampaignSlug, token);
-        if (session.Id != campaign.CampaignId) throw new InvalidOperationException("Campaign identity changed.");
+        if (session.Id != campaign.CampaignId)
+            throw new InvalidOperationException("Campaign identity changed.");
         var claims = await store.ClaimsAsync(request.GuildId, session.Id, token);
         var selected = session.CharacterIds.Take(40).ToArray();
         var names = await Task.WhenAll(selected.Select(async id =>
@@ -206,19 +247,23 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
         var lines = selected.Select((id, i) =>
         {
             var name = global::Discord.Format.Sanitize(CharacterPickerCommands.Label(names[i], "Unknown"));
-            if (name.Length > 70) name = name[..70];
+            if (name.Length > 70)
+                name = name[..70];
             var owner = claims.FirstOrDefault(claim => claim.CharacterId == id);
             var status = owner is null ? "unclaimed" : owner.UserId == request.UserId ? "yours" : "claimed";
             return $"`{id}` — {name} ({status})";
         }).ToArray();
         var text = lines.Length == 0 ? "No characters are visible in this campaign." : string.Join("\n", lines);
-        if (session.CharacterIds.Count > selected.Length) text += "\nAdditional characters omitted.";
+        if (session.CharacterIds.Count > selected.Length)
+            text += "\nAdditional characters omitted.";
         await ClearAsync(text.Length > 1900 ? text[..1900] : text);
     }
 
     private Task ShowAsync(string text, MessageComponent components) => ModifyOriginalResponseAsync(message =>
     {
-        message.Content = text; message.Components = components; message.AllowedMentions = AllowedMentions.None;
+        message.Content = text;
+        message.Components = components;
+        message.AllowedMentions = AllowedMentions.None;
     });
     private Task ClearAsync(string text) => ShowAsync(text, new ComponentBuilder().Build());
 
@@ -226,7 +271,10 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
     {
         await DeferAsync(ephemeral: !component);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try { await action(timeout.Token); }
+        try
+        {
+            await action(timeout.Token);
+        }
         catch (EmojiResolutionException ex)
         {
             await ClearAsync(ex.Message);

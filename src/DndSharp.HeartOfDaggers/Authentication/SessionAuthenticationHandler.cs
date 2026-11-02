@@ -11,10 +11,12 @@ public sealed class SessionAuthenticationHandler(HeartSession session) : Delegat
         var generation = session.Generation;
         var response = await base.SendAsync(request, cancellationToken);
         if (request.Method != HttpMethod.Get || response.StatusCode is not
-            (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.Redirect)) return response;
+            (HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.Redirect))
+            return response;
 
         // A permissions error must not trigger another login if the session itself is still valid.
-        if (!await session.RefreshIfExpiredAsync(generation, cancellationToken)) return response;
+        if (!await session.RefreshIfExpiredAsync(generation, cancellationToken))
+            return response;
         response.Dispose();
         using var retry = new HttpRequestMessage(request.Method, request.RequestUri)
         {

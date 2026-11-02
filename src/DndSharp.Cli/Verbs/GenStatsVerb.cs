@@ -27,20 +27,22 @@ internal class GenStatsVerb(
 {
     public async Task<PkPokemon?> Search(string name, CancellationToken token)
     {
-        if (string.IsNullOrEmpty(name)) return null;
+        if (string.IsNullOrEmpty(name))
+            return null;
 
         var search = await _poke.Indexed<PkPokemon>()
             .SearchResources(name, token: token)
             .OrderByDescending(t => t.Score)
             .FirstOrDefaultAsync(token);
-        if (search is null) return null;
+        if (search is null)
+            return null;
 
         return await _poke.Fetch<PkPokemon>(search.Url, token: token);
     }
 
     public async IAsyncEnumerable<PkPokemon> GetPokemon(GenStatsOptions options, [EnumeratorCancellation] CancellationToken token)
     {
-        foreach(var name in options.Pokemon)
+        foreach (var name in options.Pokemon)
         {
             var pk = await Search(name, token);
             if (pk is null)
@@ -127,7 +129,7 @@ internal class GenStatsVerb(
     public static void PrintMon(StringBuilder bob, PokemonCharacter character, GenStatsOptions options)
     {
         bob.AppendLine($"# {character.Name} - {character.Nature.Name}");
-        foreach(var level in options.Levels)
+        foreach (var level in options.Levels)
         {
             character.Level = level;
             var s = character.Stats;

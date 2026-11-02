@@ -42,7 +42,7 @@ public static class DiExtensions
         var loaded = new HashSet<string>();
         var typesLoaded = new HashSet<string>();
 
-        while(assemblies.Count > 0)
+        while (assemblies.Count > 0)
         {
             var assembly = assemblies[0];
             assemblies.RemoveAt(0);
@@ -51,14 +51,14 @@ public static class DiExtensions
                 continue;
 
             var types = assembly.GetTypes();
-            foreach(var type in types)
+            foreach (var type in types)
             {
                 if (!typesLoaded.Add(type.FullName!))
                     continue;
 
                 yield return type;
             }
-            
+
             var references = assembly.GetReferencedAssemblies();
             foreach (var reference in references)
             {
@@ -70,14 +70,16 @@ public static class DiExtensions
                     var asm = Assembly.Load(reference.FullName!);
                     assemblies.Add(asm);
                 }
-                catch { }
+                catch
+                {
+                }
             }
         }
     }
 
     public static IEnumerable<Type> AllTypesOf(this Type type)
     {
-        foreach(var item in Assembly.GetExecutingAssembly().AllTypes())
+        foreach (var item in Assembly.GetExecutingAssembly().AllTypes())
             if (type.IsAssignableFrom(item) && item != type)
                 yield return item;
     }
@@ -92,16 +94,17 @@ public static class DiExtensions
     public static IEnumerable<(Type type, T attribute)> AllTypesWithAttribute<T>(this Assembly assmebly)
         where T : Attribute
     {
-        foreach(var item in assmebly.AllTypes())
+        foreach (var item in assmebly.AllTypes())
         {
             var attr = item.GetCustomAttribute<T>();
-            if (attr is null) continue;
+            if (attr is null)
+                continue;
 
             yield return (item, attr);
         }
     }
 
-    public static async IAsyncEnumerable<ExtractedResult<string>> Search(this IAsyncEnumerable<string> items, 
+    public static async IAsyncEnumerable<ExtractedResult<string>> Search(this IAsyncEnumerable<string> items,
         string term, int? cutoff = null, IRatioScorer? scorer = null)
     {
         cutoff ??= DEFAULT_FUZZY_SCORE_CUTOFF;
@@ -118,14 +121,14 @@ public static class DiExtensions
         }
     }
 
-    public static async IAsyncEnumerable<ExtractedResult<T>> Search<T>(this IAsyncEnumerable<T> items, 
+    public static async IAsyncEnumerable<ExtractedResult<T>> Search<T>(this IAsyncEnumerable<T> items,
         string term, Func<T, string> key, int? cutoff = null, IRatioScorer? scorer = null)
     {
         cutoff ??= DEFAULT_FUZZY_SCORE_CUTOFF;
         scorer ??= ScorerCache.Get<WeightedRatioScorer>();
 
         int index = 0;
-        await foreach(var item in items)
+        await foreach (var item in items)
         {
             int ratio = scorer.Score(term, key(item));
             if (ratio >= cutoff.Value)

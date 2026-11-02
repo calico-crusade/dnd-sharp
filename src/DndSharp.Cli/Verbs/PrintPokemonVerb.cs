@@ -58,16 +58,19 @@ internal class PrintPokemonVerb(
         if (options.Number is not null)
         {
             var pk = await _poke.Fetch<PkPokemon>(options.Number.Value, token: token);
-            if (pk is not null) return pk;
+            if (pk is not null)
+                return pk;
         }
 
-        if (string.IsNullOrEmpty(options.Search)) return null;
+        if (string.IsNullOrEmpty(options.Search))
+            return null;
 
         var search = await _poke.Indexed<PkPokemon>()
             .SearchResources(options.Search, token: token)
             .OrderByDescending(t => t.Score)
             .FirstOrDefaultAsync(token);
-        if (search is null) return null;
+        if (search is null)
+            return null;
 
         return await _poke.Fetch<PkPokemon>(search.Url, token: token);
     }
@@ -104,7 +107,7 @@ internal class PrintPokemonVerb(
         {
             int[] data = [stats.Hp, stats.Attack, stats.Defense, stats.SpecialAttack, stats.SpecialDefense, stats.Speed];
             var total = data.Sum();
-            return [..data, total];
+            return [.. data, total];
         }
 
         var stats = character.Stats;
@@ -114,7 +117,7 @@ internal class PrintPokemonVerb(
         var @base = character.BaseStats;
 
         var nature = StatCalculator.Nature(character.Nature);
-        int[][] values = 
+        int[][] values =
         [
             Row(character.BaseStats),
             Row(character.IVs),
@@ -128,7 +131,8 @@ internal class PrintPokemonVerb(
     public async Task LoadSprite(PokemonCharacter mon, CancellationToken token)
     {
         var sprite = mon.Pokemon.Sprites.FrontDefault;
-        if (string.IsNullOrEmpty(sprite)) return;
+        if (string.IsNullOrEmpty(sprite))
+            return;
 
         try
         {
@@ -154,12 +158,12 @@ internal class PrintPokemonVerb(
         var pokemon = await Search(options, token);
         if (pokemon is null)
         {
-            _logger.LogError("Could not find Pokemon with ID {Id} or Name {Name}.", 
+            _logger.LogError("Could not find Pokemon with ID {Id} or Name {Name}.",
                 options.Number?.ToString() ?? "null", options.Search?.ForceNull() ?? "null");
             return false;
         }
 
-        _logger.LogInformation("Translating Pokemon {Name} (ID: {Id}) to D&D format...", 
+        _logger.LogInformation("Translating Pokemon {Name} (ID: {Id}) to D&D format...",
             pokemon.Name, pokemon.Id);
         var translation = await _translate.Translate(pokemon.Id, token: token);
         if (translation is null)
@@ -183,7 +187,7 @@ internal class PrintPokemonVerb(
 
         await LoadSprite(translation, token);
         _logger.LogInformation("Name: {name} ({species}) - Lvl. {level} - Nature: {nature}",
-            translation.Name, translation.SpeciesName, translation.Level, 
+            translation.Name, translation.SpeciesName, translation.Level,
             translation.Nature.Localizations.PreferredOrFirst(t => t.Resource.Name == "en")?.Name);
         _logger.LogInformation("STR: {str} | DEX: {dex} | CON: {con} | INT: {int} | WIS: {wis} | CHR: {chr}",
             translation.DndStats.Strength, translation.DndStats.Dexterity,

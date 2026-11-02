@@ -6,7 +6,9 @@ using Microsoft.Extensions.Logging;
 namespace DndSharp.HeartOfDaggers.Verbs;
 
 [Verb("heart-of-daggers-mailbox-check", HelpText = "Check IMAP TLS, credentials, and read-only inbox access without requesting a login email.")]
-public sealed class HeartMailboxCheckOptions { }
+public sealed class HeartMailboxCheckOptions
+{
+}
 
 public sealed class HeartMailboxCheckVerb(ILogger<HeartMailboxCheckVerb> logger, ILoginCodeProvider provider)
     : BooleanVerb<HeartMailboxCheckOptions>(logger)
@@ -21,7 +23,10 @@ public sealed class HeartMailboxCheckVerb(ILogger<HeartMailboxCheckVerb> logger,
             logger.LogInformation("Mailbox check passed: TLS, authentication, and read-only inbox access succeeded. No login email was requested.");
             return true;
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested) { return false; }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return false;
+        }
         catch (OperationCanceledException)
         {
             logger.LogWarning("Mailbox check timed out. Check the IMAP hostname, port, firewall, and network.");

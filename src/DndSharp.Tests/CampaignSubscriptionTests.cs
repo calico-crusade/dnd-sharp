@@ -89,7 +89,10 @@ public sealed class CampaignSubscriptionTests
         Assert.IsTrue(state.Take(id, out var taken));
         Assert.AreEqual(request, taken);
         Assert.IsFalse(state.Take(id, out _));
-        var expired = state.Add(request with { Expires = DateTimeOffset.UtcNow.AddSeconds(-1) });
+        var expired = state.Add(request with
+        {
+            Expires = DateTimeOffset.UtcNow.AddSeconds(-1)
+        });
         Assert.IsNull(state.Get(expired));
         Assert.IsFalse(state.Take(expired, out _));
     }
@@ -99,19 +102,48 @@ public sealed class CampaignSubscriptionTests
     {
         static string Format(int fear, int hope, int total, DualityDisplaySettings settings)
         {
-            using var json = JsonDocument.Parse(JsonSerializer.Serialize(new { actorName = "Test", total, duality = new { fear, hope } }));
+            using var json = JsonDocument.Parse(JsonSerializer.Serialize(new
+            {
+                actorName = "Test",
+                total,
+                duality = new
+                {
+                    fear,
+                    hope
+                }
+            }));
             return CampaignSubscriptions.Format(json.RootElement, settings);
         }
-        var settings = new DualityDisplaySettings(Difficulty: 12);
+        var settings = new DualityDisplaySettings(
+            SuccessFear: "✅ 💀",
+            SuccessHope: "✅ ✨",
+            FailureFear: "❌ 💀",
+            FailureHope: "❌ ✨",
+            Critical: "🎉🎉🎉",
+            Fear: "💀",
+            Hope: "✨",
+            Difficulty: 12);
         StringAssert.StartsWith(Format(9, 3, 12, settings), "✅ 💀");
         StringAssert.StartsWith(Format(3, 9, 12, settings), "✅ ✨");
         StringAssert.StartsWith(Format(8, 2, 10, settings), "❌ 💀");
         StringAssert.StartsWith(Format(2, 8, 10, settings), "❌ ✨");
         StringAssert.StartsWith(Format(2, 2, 4, settings), "🎉🎉🎉");
-        StringAssert.StartsWith(Format(8, 2, 10, settings with { Difficulty = null }), "💀");
-        StringAssert.StartsWith(Format(2, 8, 10, settings with { Difficulty = null }), "✨");
-        StringAssert.StartsWith(Format(2, 8, 10, settings with { Enabled = false }), "🎲");
-        StringAssert.StartsWith(Format(2, 2, 4, settings with { Critical = "🏆" }), "🏆");
+        StringAssert.StartsWith(Format(8, 2, 10, settings with
+        {
+            Difficulty = null
+        }), "💀");
+        StringAssert.StartsWith(Format(2, 8, 10, settings with
+        {
+            Difficulty = null
+        }), "✨");
+        StringAssert.StartsWith(Format(2, 8, 10, settings with
+        {
+            Enabled = false
+        }), "🎲");
+        StringAssert.StartsWith(Format(2, 2, 4, settings with
+        {
+            Critical = "🏆"
+        }), "🏆");
     }
 
     [TestMethod]
@@ -168,7 +200,13 @@ public sealed class CampaignSubscriptionTests
             await restarted.SaveAsync([]);
             Assert.AreEqual(0, (await new CampaignSubscriptionStore(config).LoadAsync()).Count, "Legacy data must not be imported twice.");
         }
-        finally { if (File.Exists(path)) File.Delete(path); if (File.Exists(database)) File.Delete(database); }
+        finally
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+            if (File.Exists(database))
+                File.Delete(database);
+        }
     }
 
     [TestMethod]
@@ -194,7 +232,8 @@ public sealed class CampaignSubscriptionTests
         {
             var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Discord:CampaignSubscriptionsPath"] = legacy, ["Discord:DatabasePath"] = database
+                ["Discord:CampaignSubscriptionsPath"] = legacy,
+                ["Discord:DatabasePath"] = database
             }).Build();
             await File.WriteAllTextAsync(legacy, """[{"GuildId":123,"ChannelId":456,"CampaignId":789,"CampaignSlug":"valid"},{"GuildId":0,"ChannelId":456,"CampaignId":790,"CampaignSlug":"invalid"}]""");
             var store = new CampaignSubscriptionStore(config);
@@ -204,6 +243,12 @@ public sealed class CampaignSubscriptionTests
             Assert.AreEqual(1, loaded.Count);
             Assert.AreEqual("corrected", loaded[0].CampaignSlug);
         }
-        finally { if (File.Exists(legacy)) File.Delete(legacy); if (File.Exists(database)) File.Delete(database); }
+        finally
+        {
+            if (File.Exists(legacy))
+                File.Delete(legacy);
+            if (File.Exists(database))
+                File.Delete(database);
+        }
     }
 }

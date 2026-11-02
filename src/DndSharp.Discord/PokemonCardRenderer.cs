@@ -60,7 +60,8 @@ public sealed class PokemonCardRenderer(
             using var font = new SKFont(typeface, size) { Embolden = bold };
             // Shrink long names to fit their allocated space without clipping or wrapping.
             var measured = font.MeasureText(value);
-            if (measured > width) font.Size *= width / measured;
+            if (measured > width)
+                font.Size *= width / measured;
             paint.Color = color ?? ink;
             canvas.DrawText(value, x, y - font.Metrics.Ascent, SKTextAlign.Left, font, paint);
         }
@@ -130,7 +131,8 @@ public sealed class PokemonCardRenderer(
     private async Task<SKBitmap?> LoadArtwork(PokemonCharacter character, CancellationToken token)
     {
         var url = PokemonCommandService.ArtworkUrl(character.Pokemon);
-        if (string.IsNullOrWhiteSpace(url)) return null;
+        if (string.IsNullOrWhiteSpace(url))
+            return null;
         try
         {
             var bytes = await http.GetByteArrayAsync(url, token);
@@ -149,11 +151,23 @@ public sealed class PokemonCardRenderer(
 
     private static SKColor TypeColor(string? type) => SKColor.Parse(type switch
     {
-        "fire" => "AD4B26", "water" => "2E668C", "grass" => "3C7250",
-        "electric" => "9B7515", "psychic" => "9F466B", "ice" => "387E86",
-        "dragon" => "66519B", "dark" => "55505E", "ghost" => "69547F",
-        "fairy" => "A75F87", "poison" => "7D5189", "fighting" => "945247",
-        "ground" => "8A6A3B", "rock" => "7A704C", "steel" => "536B78",
-        "bug" => "667D35", "flying" => "5D72A0", _ => "626E68"
+        "fire" => "AD4B26",
+        "water" => "2E668C",
+        "grass" => "3C7250",
+        "electric" => "9B7515",
+        "psychic" => "9F466B",
+        "ice" => "387E86",
+        "dragon" => "66519B",
+        "dark" => "55505E",
+        "ghost" => "69547F",
+        "fairy" => "A75F87",
+        "poison" => "7D5189",
+        "fighting" => "945247",
+        "ground" => "8A6A3B",
+        "rock" => "7A704C",
+        "steel" => "536B78",
+        "bug" => "667D35",
+        "flying" => "5D72A0",
+        _ => "626E68"
     });
 }

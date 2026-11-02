@@ -29,7 +29,8 @@ public sealed class PokemonCommandService(IPokeApiService poke, IPokemonTranslat
         if (level is < 1 or > 100)
             throw new ArgumentException("Level must be between 1 and 100.");
         var character = await translation.Translate(pokemon.Id, token: token);
-        if (character is not null) character.Level = level;
+        if (character is not null)
+            character.Level = level;
         return character;
     }
 
@@ -45,7 +46,8 @@ public sealed class PokemonCommandService(IPokeApiService poke, IPokemonTranslat
             .WithColor(new Color(0xD7B85B))
             .WithFooter("Species base stats from PokéAPI; no level, nature, EV, or IV modifiers.");
         var artwork = ArtworkUrl(pokemon);
-        if (!string.IsNullOrEmpty(artwork)) embed.WithThumbnailUrl(artwork);
+        if (!string.IsNullOrEmpty(artwork))
+            embed.WithThumbnailUrl(artwork);
         embed.AddField("HP", stats.Hp, true)
             .AddField("Attack", stats.Attack, true)
             .AddField("Defense", stats.Defense, true)

@@ -26,38 +26,59 @@ public sealed class CampaignSubscriptions(
         await gate.WaitAsync(token);
         try
         {
-            if (lifetime is not null) return;
+            if (lifetime is not null)
+                return;
             var saved = await store.LoadAsync(token);
             lifetime = CancellationTokenSource.CreateLinkedTokenSource(token);
             subscriptions.AddRange(saved);
-            foreach (var item in subscriptions) StartWorker(item);
+            foreach (var item in subscriptions)
+                StartWorker(item);
         }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public async Task<(CampaignSubscription Subscription, bool Added)> SubscribeAsync(
         ulong guildId, ulong channelId, string invitation, CancellationToken token)
     {
-        if (guildId == 0 || channelId == 0) throw new ArgumentException("A server and channel are required.");
+        if (guildId == 0 || channelId == 0)
+            throw new ArgumentException("A server and channel are required.");
         // Reject calls during startup before joining the external campaign.
         await gate.WaitAsync(token);
-        try { if (lifetime is null || lifetime.IsCancellationRequested) throw new InvalidOperationException("The bot is starting or stopping."); }
-        finally { gate.Release(); }
+        try
+        {
+            if (lifetime is null || lifetime.IsCancellationRequested)
+                throw new InvalidOperationException("The bot is starting or stopping.");
+        }
+        finally
+        {
+            gate.Release();
+        }
         var campaign = await invitations.JoinWithoutCharacterAsync(invitation, token);
         var item = new CampaignSubscription(guildId, channelId, campaign.Id, campaign.Slug);
         await gate.WaitAsync(token);
         try
         {
-            if (lifetime is null || lifetime.IsCancellationRequested) throw new InvalidOperationException("The bot is stopping.");
-            if (subscriptions.Any(existing => Key(existing) == Key(item))) return (item, false);
-            item = item with { Duality = subscriptions.FirstOrDefault(existing => existing.GuildId == guildId && existing.CampaignId == item.CampaignId)?.Duality };
+            if (lifetime is null || lifetime.IsCancellationRequested)
+                throw new InvalidOperationException("The bot is stopping.");
+            if (subscriptions.Any(existing => Key(existing) == Key(item)))
+                return (item, false);
+            item = item with
+            {
+                Duality = subscriptions.FirstOrDefault(existing => existing.GuildId == guildId && existing.CampaignId == item.CampaignId)?.Duality
+            };
             var updated = subscriptions.Append(item).ToArray();
             await store.SaveAsync(updated, token);
             subscriptions.Add(item);
             StartWorker(item);
             return (item, true);
         }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public async Task<bool> UnsubscribeAsync(ulong guildId, ulong channelId, string campaign, CancellationToken token)
@@ -69,15 +90,26 @@ public sealed class CampaignSubscriptions(
         {
             var item = subscriptions.FirstOrDefault(item => item.GuildId == guildId && item.ChannelId == channelId &&
                 item.CampaignSlug.Equals(slug, StringComparison.OrdinalIgnoreCase));
-            if (item is null) return false;
+            if (item is null)
+                return false;
             await store.SaveAsync(subscriptions.Where(existing => existing != item).ToArray(), token);
             subscriptions.Remove(item);
-            if (workers.Remove(Key(item), out worker)) worker.Cancellation.Cancel();
+            if (workers.Remove(Key(item), out worker))
+                worker.Cancellation.Cancel();
         }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+        }
         if (worker is not null)
         {
-            try { await worker.Task; } catch (OperationCanceledException) { }
+            try
+            {
+                await worker.Task;
+            }
+            catch (OperationCanceledException)
+            {
+            }
             worker.Cancellation.Dispose();
         }
         return true;
@@ -86,30 +118,54 @@ public sealed class CampaignSubscriptions(
     public async Task<IReadOnlyList<CampaignSubscription>> ListAsync(ulong guildId, ulong channelId, CancellationToken token)
     {
         await gate.WaitAsync(token);
-        try { return subscriptions.Where(item => item.GuildId == guildId && item.ChannelId == channelId).ToArray(); }
-        finally { gate.Release(); }
+        try
+        {
+            return subscriptions.Where(item => item.GuildId == guildId && item.ChannelId == channelId).ToArray();
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public async Task<CampaignSubscription?> FindAsync(ulong guildId, string campaign, CancellationToken token)
     {
         var slug = CampaignSession.ParseCampaignSlug(campaign);
         await gate.WaitAsync(token);
-        try { return subscriptions.FirstOrDefault(item => item.GuildId == guildId && item.CampaignSlug.Equals(slug, StringComparison.OrdinalIgnoreCase)); }
-        finally { gate.Release(); }
+        try
+        {
+            return subscriptions.FirstOrDefault(item => item.GuildId == guildId && item.CampaignSlug.Equals(slug, StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public async Task<IReadOnlyList<CampaignSubscription>> ListCampaignsAsync(ulong guildId, CancellationToken token)
     {
         await gate.WaitAsync(token);
-        try { return subscriptions.Where(item => item.GuildId == guildId).DistinctBy(item => item.CampaignId).ToArray(); }
-        finally { gate.Release(); }
+        try
+        {
+            return subscriptions.Where(item => item.GuildId == guildId).DistinctBy(item => item.CampaignId).ToArray();
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public async Task<IReadOnlyList<CampaignSubscription>> ListCampaignSubscriptionsAsync(ulong guildId, long campaignId, CancellationToken token)
     {
         await gate.WaitAsync(token);
-        try { return subscriptions.Where(item => item.GuildId == guildId && item.CampaignId == campaignId).ToArray(); }
-        finally { gate.Release(); }
+        try
+        {
+            return subscriptions.Where(item => item.GuildId == guildId && item.CampaignId == campaignId).ToArray();
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public async Task<DualityDisplaySettings?> ConfigureDualityAsync(ulong guildId, string campaign,
@@ -121,16 +177,23 @@ public sealed class CampaignSubscriptions(
         {
             var current = subscriptions.FirstOrDefault(item => item.GuildId == guildId &&
                 item.CampaignSlug.Equals(slug, StringComparison.OrdinalIgnoreCase));
-            if (current is null) return null;
+            if (current is null)
+                return null;
             var settings = update(current.Duality ?? new DualityDisplaySettings());
             var updated = subscriptions.Select(item => item.GuildId == guildId && item.CampaignId == current.CampaignId
-                ? item with { Duality = settings } : item).ToArray();
+                ? item with
+                {
+                    Duality = settings
+                } : item).ToArray();
             await store.SaveAsync(updated, token);
             subscriptions.Clear();
             subscriptions.AddRange(updated);
             return settings;
         }
-        finally { gate.Release(); }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     public async Task StopAsync()
@@ -143,12 +206,21 @@ public sealed class CampaignSubscriptions(
             active = workers.Values.ToArray();
             workers.Clear();
         }
-        finally { gate.Release(); }
-        try { await Task.WhenAll(active.Select(worker => worker.Task)); }
-        catch (OperationCanceledException) { }
         finally
         {
-            foreach (var worker in active) worker.Cancellation.Dispose();
+            gate.Release();
+        }
+        try
+        {
+            await Task.WhenAll(active.Select(worker => worker.Task));
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            foreach (var worker in active)
+                worker.Cancellation.Dispose();
             lifetime?.Dispose();
             lifetime = null;
         }
@@ -170,14 +242,24 @@ public sealed class CampaignSubscriptions(
             try
             {
                 await watcher.WatchAsync(item.CampaignSlug, (entry, ct) => SendAsync(item, entry, ct), token, tracker);
-                if (!token.IsCancellationRequested) throw new InvalidOperationException("Campaign watcher stopped unexpectedly.");
+                if (!token.IsCancellationRequested)
+                    throw new InvalidOperationException("Campaign watcher stopped unexpectedly.");
             }
-            catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                return;
+            }
             catch (Exception ex)
             {
                 logger.LogWarning("Campaign {CampaignId} watcher failed ({ErrorType}); retrying in {Delay}.", item.CampaignId, ex.GetType().Name, retry);
-                try { await Task.Delay(retry, token); }
-                catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+                try
+                {
+                    await Task.Delay(retry, token);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    return;
+                }
                 retry = TimeSpan.FromSeconds(Math.Min(retry.TotalSeconds * 2, 900));
             }
         }
@@ -194,8 +276,14 @@ public sealed class CampaignSubscriptions(
                     throw new InvalidOperationException("The subscribed Discord channel is unavailable.");
                 DualityDisplaySettings? settings;
                 await gate.WaitAsync(token);
-                try { settings = subscriptions.FirstOrDefault(item => Key(item) == Key(subscription))?.Duality; }
-                finally { gate.Release(); }
+                try
+                {
+                    settings = subscriptions.FirstOrDefault(item => Key(item) == Key(subscription))?.Duality;
+                }
+                finally
+                {
+                    gate.Release();
+                }
                 var claims = await store.ClaimsAsync(subscription.GuildId, subscription.CampaignId, token);
                 var owner = FindOwner(history.Entry, claims);
                 var prefix = DualityDisplay.Prefix(history.Entry, settings ?? new DualityDisplaySettings());
@@ -217,7 +305,8 @@ public sealed class CampaignSubscriptions(
     public static ulong? FindOwner(JsonElement entry, IReadOnlyList<CharacterClaim> claims)
     {
         if (entry.ValueKind != JsonValueKind.Object || !entry.TryGetProperty("actorPostId", out var actor) ||
-            actor.ValueKind != JsonValueKind.Number || !actor.TryGetInt64(out var id) || id <= 0) return null;
+            actor.ValueKind != JsonValueKind.Number || !actor.TryGetInt64(out var id) || id <= 0)
+            return null;
         return claims.FirstOrDefault(claim => claim.CharacterId == id)?.UserId;
     }
 
@@ -237,7 +326,8 @@ public sealed class CampaignSubscriptions(
         var label = Safe(Read(entry, "label"), "Roll");
         var notation = Safe(Read(entry, "notation") ?? Read(entry, "baseNotation"), "");
         var prefix = DualityDisplay.Prefix(entry, settings ?? new DualityDisplaySettings()) ?? "🎲";
-        if (emotes is not null) prefix = ServerEmojiResolver.Resolve(prefix, emotes, strict: false);
+        if (emotes is not null)
+            prefix = ServerEmojiResolver.Resolve(prefix, emotes, strict: false);
         return string.IsNullOrEmpty(notation) ? $"{prefix} **{actor}** — {label}" : $"{prefix} **{actor}** — {label}\n{notation}";
     }
 

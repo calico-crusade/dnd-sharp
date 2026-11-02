@@ -51,7 +51,8 @@ public sealed class CampaignInvitationService(HeartSession session, HeartSession
         foreach (var input in form.SelectNodes(".//input[@type='hidden'][@name]") ?? Enumerable.Empty<HtmlNode>())
         {
             var name = input.GetAttributeValue("name", "");
-            if (!permitted.Contains(name)) throw new InvalidOperationException("The no-character invitation form has changed.");
+            if (!permitted.Contains(name))
+                throw new InvalidOperationException("The no-character invitation form has changed.");
             fields[name] = WebUtility.HtmlDecode(input.GetAttributeValue("value", ""));
         }
         if (!fields.TryGetValue("invite", out var token) || token != invite.Token ||

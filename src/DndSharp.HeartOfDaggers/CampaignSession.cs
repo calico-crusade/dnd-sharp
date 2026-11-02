@@ -14,7 +14,8 @@ public sealed class CampaignSession
         Id = RequiredId(state, "campaignId");
         UserId = RequiredId(state, "currentUserId");
         AccessMode = RequiredString(state, "campaignAccessMode");
-        if (AccessMode is not ("gm" or "player")) throw new FormatException("Unrecognized campaign access mode.");
+        if (AccessMode is not ("gm" or "player"))
+            throw new FormatException("Unrecognized campaign access mode.");
         SocketAuth = RequiredString(state, "campaignSocketAuth");
         Nonce = RequiredString(state, "nonce");
         if (!Uri.TryCreate(RequiredString(state, "socketUrl"), UriKind.Absolute, out var socketUri) ||
@@ -79,14 +80,17 @@ public sealed class CampaignSession
 
     private static long[] ReadIds(JsonElement state, string name)
     {
-        if (!state.TryGetProperty(name, out var value)) return [];
+        if (!state.TryGetProperty(name, out var value))
+            return [];
         var ids = new HashSet<long>();
         void Walk(JsonElement item)
         {
             if (item.ValueKind == JsonValueKind.Array)
-                foreach (var child in item.EnumerateArray()) Walk(child);
+                foreach (var child in item.EnumerateArray())
+                    Walk(child);
             else if (item.ValueKind == JsonValueKind.Object)
-                foreach (var property in item.EnumerateObject()) Walk(property.Value);
+                foreach (var property in item.EnumerateObject())
+                    Walk(property.Value);
             else if (item.ValueKind == JsonValueKind.Number && item.TryGetInt64(out var number) && number > 0)
                 ids.Add(number);
             else if (item.ValueKind == JsonValueKind.String && long.TryParse(item.GetString(), out var parsed) && parsed > 0)

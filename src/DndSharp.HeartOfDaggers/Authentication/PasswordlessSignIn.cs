@@ -22,7 +22,8 @@ public sealed class PasswordlessSignIn(HttpClient http, IConfiguration configura
         loginPage.EnsureSuccessStatusCode();
         var html = await loginPage.Content.ReadAsStringAsync(cancellationToken);
         var match = Regex.Match(html, @"\bpwlessObj\s*=\s*(\{[^;\r\n]*\})", RegexOptions.CultureInvariant);
-        if (!match.Success) throw new InvalidOperationException("The Heart of Daggers login form has changed.");
+        if (!match.Success)
+            throw new InvalidOperationException("The Heart of Daggers login form has changed.");
         using var loginData = JsonDocument.Parse(match.Groups[1].Value);
         if (!loginData.RootElement.TryGetProperty("ajaxNonce", out var nonceValue) ||
             string.IsNullOrWhiteSpace(nonceValue.GetString()))

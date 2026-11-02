@@ -30,7 +30,10 @@ public static class DiExtensions
             client.Timeout = TimeSpan.FromSeconds(10));
         services.AddHttpClient<ICharacterSheetRenderer, CharacterSheetRenderer>(client =>
             client.Timeout = TimeSpan.FromSeconds(10)).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-            { AllowAutoRedirect = false, UseCookies = false });
+            {
+                AllowAutoRedirect = false,
+                UseCookies = false
+            });
         return services;
     }
 }

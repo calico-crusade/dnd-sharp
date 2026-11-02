@@ -106,12 +106,14 @@ public sealed class PokeApiDataInitializerTests
         {
             var start = new ProcessStartInfo("git") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
             start.Environment["GIT_TERMINAL_PROMPT"] = "0";
-            foreach (var arg in args) start.ArgumentList.Add(arg);
+            foreach (var arg in args)
+                start.ArgumentList.Add(arg);
             using var process = Process.Start(start)!;
             var output = process.StandardOutput.ReadToEnd();
             var error = process.StandardError.ReadToEnd();
             process.WaitForExit();
-            if (process.ExitCode != 0) throw new InvalidOperationException($"Test Git command failed: {output} {error}");
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException($"Test Git command failed: {output} {error}");
         }
 
         public void Dispose()
@@ -122,8 +124,10 @@ public sealed class PokeApiDataInitializerTests
             if (!parent.Equals(temp, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ||
                 !Path.GetFileName(root).StartsWith("dndsharp-poke-tests-", StringComparison.Ordinal))
                 throw new InvalidOperationException("Unsafe test cleanup path.");
-            if (!Directory.Exists(root)) return;
-            foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)) File.SetAttributes(file, FileAttributes.Normal);
+            if (!Directory.Exists(root))
+                return;
+            foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                File.SetAttributes(file, FileAttributes.Normal);
             Directory.Delete(root, recursive: true);
         }
     }

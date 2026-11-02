@@ -9,7 +9,8 @@ public static class DiExtensions
 {
     public static IServiceCollection AddHeartOfDaggers(this IServiceCollection services)
     {
-        if (services.Any(item => item.ServiceType == typeof(HeartSession))) return services;
+        if (services.Any(item => item.ServiceType == typeof(HeartSession)))
+            return services;
         services.AddSingleton<HeartSessionTransport>();
         services.AddSingleton<ILoginCodeProvider, ImapLoginCodeProvider>();
         services.AddSingleton(provider => new PasswordlessSignIn(

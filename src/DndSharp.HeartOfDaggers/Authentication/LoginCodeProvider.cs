@@ -36,7 +36,8 @@ public sealed class ImapLoginCodeProvider(IConfiguration configuration, ILogger<
         var port = 993;
         if (!string.IsNullOrWhiteSpace(configuredPort) && (!int.TryParse(configuredPort, out port) || port is < 1 or > 65535))
             throw new MailboxSetupException(MailboxSetupFailure.InvalidPort);
-        if (string.IsNullOrWhiteSpace(sender)) throw new MailboxSetupException(MailboxSetupFailure.InvalidSender);
+        if (string.IsNullOrWhiteSpace(sender))
+            throw new MailboxSetupException(MailboxSetupFailure.InvalidSender);
 
         var client = new ImapClient();
         try
@@ -51,7 +52,10 @@ public sealed class ImapLoginCodeProvider(IConfiguration configuration, ILogger<
                 await inbox.OpenAsync(FolderAccess.ReadOnly, cancellationToken);
                 existing = await inbox.SearchAsync(SearchQuery.All, cancellationToken);
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex) when (ex is CommandException or ProtocolException or ServiceNotConnectedException or ServiceNotAuthenticatedException or IOException or SocketException or TimeoutException)
             {
                 throw new MailboxSetupException(MailboxSetupFailure.InboxAccess);
@@ -74,8 +78,14 @@ public sealed class ImapLoginCodeProvider(IConfiguration configuration, ILogger<
         Func<CancellationToken, Task> authenticate, ILogger logger, int port, CancellationToken token)
     {
         logger.LogInformation("Connecting to the IMAP server using TLS on port {Port}.", port);
-        try { await connect(token); }
-        catch (OperationCanceledException) { throw; }
+        try
+        {
+            await connect(token);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex) when (ex is SslHandshakeException or System.Security.Authentication.AuthenticationException)
         {
             throw new MailboxSetupException(MailboxSetupFailure.TlsHandshake);
@@ -85,10 +95,22 @@ public sealed class ImapLoginCodeProvider(IConfiguration configuration, ILogger<
             throw new MailboxSetupException(MailboxSetupFailure.Connection);
         }
         logger.LogInformation("IMAP TLS connection established; authenticating the mailbox.");
-        try { await authenticate(token); }
-        catch (OperationCanceledException) { throw; }
-        catch (SaslException) { throw new MailboxSetupException(MailboxSetupFailure.SaslAuthentication); }
-        catch (MailKit.Security.AuthenticationException) { throw new MailboxSetupException(MailboxSetupFailure.CredentialsRejected); }
+        try
+        {
+            await authenticate(token);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (SaslException)
+        {
+            throw new MailboxSetupException(MailboxSetupFailure.SaslAuthentication);
+        }
+        catch (MailKit.Security.AuthenticationException)
+        {
+            throw new MailboxSetupException(MailboxSetupFailure.CredentialsRejected);
+        }
         catch (Exception ex) when (ex is SslHandshakeException or System.Security.Authentication.AuthenticationException)
         {
             throw new MailboxSetupException(MailboxSetupFailure.TlsHandshake);
@@ -120,7 +142,8 @@ public sealed class ImapLoginCodeProvider(IConfiguration configuration, ILogger<
             body = WebUtility.HtmlDecode(Regex.Replace(html, "<[^>]+>", " ", RegexOptions.None, TimeSpan.FromSeconds(1)));
         }
         var matches = Regex.Matches(body, @"(?<!\d)\d{6}(?!\d)", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
-        if (matches.Count == 1) return matches[0].Value;
+        if (matches.Count == 1)
+            return matches[0].Value;
         var contextual = Regex.Match(body, @"(?:code|verification|one.time)[^\d]{0,100}(\d{6})(?!\d)",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
         return contextual.Success ? contextual.Groups[1].Value : null;
@@ -147,10 +170,12 @@ public sealed class ImapLoginCodeProvider(IConfiguration configuration, ILogger<
                         logger.LogDebug("Checking a new message in the bot mailbox.");
                         lastId = uid.Id;
                         var summary = await inbox.FetchAsync(new[] { uid }, MessageSummaryItems.Envelope, timeout.Token);
-                        if (summary.Count == 0) continue;
+                        if (summary.Count == 0)
+                            continue;
                         // Check headers before downloading the message body.
                         var envelope = summary[0].Envelope;
-                        if (envelope is null) continue;
+                        if (envelope is null)
+                            continue;
                         var headers = new MimeMessage { Subject = envelope.Subject ?? "" };
                         headers.From.AddRange(envelope.From);
                         headers.To.AddRange(envelope.To);
@@ -162,7 +187,8 @@ public sealed class ImapLoginCodeProvider(IConfiguration configuration, ILogger<
                         }
                         var message = await inbox.GetMessageAsync(uid, timeout.Token);
                         var code = ExtractCode(message);
-                        if (code is not null) return code;
+                        if (code is not null)
+                            return code;
                         logger.LogWarning("A Heart of Daggers login email was received, but its code could not be extracted.");
                     }
                     await Task.Delay(TimeSpan.FromSeconds(3), timeout.Token);
@@ -176,7 +202,8 @@ public sealed class ImapLoginCodeProvider(IConfiguration configuration, ILogger<
 
         public async ValueTask DisposeAsync()
         {
-            if (client.IsConnected) await client.DisconnectAsync(true);
+            if (client.IsConnected)
+                await client.DisconnectAsync(true);
             client.Dispose();
         }
     }

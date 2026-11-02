@@ -7,7 +7,9 @@ public class DndStats
     internal TranslateSettings? _settings = null;
 
     [JsonConstructor]
-    internal DndStats() { }
+    internal DndStats()
+    {
+    }
 
     public DndStats(IPokemonStats stats, TranslateSettings settings)
     {
@@ -19,10 +21,10 @@ public class DndStats
     /// The pokemon's strength stat (based on it's attack)
     /// </summary>
     [JsonPropertyName("str")]
-    public int Strength 
-    {  
-        get => _str ??= Scale(_stats?.Attack); 
-        set => _str = value; 
+    public int Strength
+    {
+        get => _str ??= Scale(_stats?.Attack);
+        set => _str = value;
     }
 
     /// <summary>
@@ -94,7 +96,7 @@ public class DndStats
             return 0;
 
         var settings = _settings ?? new();
-        var slope = (settings.HighScore - settings.LowScore) / 
+        var slope = (settings.HighScore - settings.LowScore) /
             (settings.HighStat - settings.LowStat);
         var raw = settings.LowScore + slope * (stat.Value - settings.LowStat);
         var rounded = Math.Round(raw, MidpointRounding.AwayFromZero);
@@ -107,7 +109,8 @@ public class DndStats
     /// <returns>The scaled value</returns>
     internal int ScaleHp()
     {
-        if (_stats is null) return 0;
+        if (_stats is null)
+            return 0;
 
         var settings = _settings ?? new();
         var stat = (settings.HpWeight * _stats.Hp) + (settings.DefWeight * _stats.Defense);
@@ -120,7 +123,8 @@ public class DndStats
     /// <returns>The scaled value</returns>
     internal int ScaleChr()
     {
-        if (_stats is null) return 0;
+        if (_stats is null)
+            return 0;
 
         var settings = _settings ?? new();
         double[] stats = [_stats.Attack, _stats.Defense, _stats.SpecialAttack, _stats.SpecialDefense, _stats.Speed];

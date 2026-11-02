@@ -44,16 +44,26 @@ public sealed class HeartOfDaggersVerb(
             var history = options.ShowHistory ? await api.GetCampaignHistoryAsync(campaign, token) : null;
             Console.WriteLine(JsonSerializer.Serialize(new
             {
-                campaign = new { campaign.Id, campaign.Slug, campaign.AccessMode },
+                campaign = new
+                {
+                    campaign.Id,
+                    campaign.Slug,
+                    campaign.AccessMode
+                },
                 characters,
                 history
             }, JsonOptions));
-            if (options.SnapshotOnly) return true;
+            if (options.SnapshotOnly)
+                return true;
 
             logger.LogInformation("Watching for new history entries. Press Ctrl+C to stop.");
             await watcher.WatchAsync(campaign.Slug, (item, _) =>
             {
-                Console.WriteLine(JsonSerializer.Serialize(new { campaignId = item.CampaignId, entry = item.Entry }, JsonOptions));
+                Console.WriteLine(JsonSerializer.Serialize(new
+                {
+                    campaignId = item.CampaignId,
+                    entry = item.Entry
+                }, JsonOptions));
                 return Task.CompletedTask;
             }, token);
             return true;

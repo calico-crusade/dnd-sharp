@@ -42,7 +42,7 @@ internal class PokeApiService(
 
     public bool ShouldCache { get; set; } = true;
 
-    public string BasePath => _path ??= _config["PokeApi:BasePath"] 
+    public string BasePath => _path ??= _config["PokeApi:BasePath"]
         ?? throw new NullReferenceException("PokeApi:BasePath is not found");
 
     public static string[] PathSplit(string thing)
@@ -52,7 +52,8 @@ internal class PokeApiService(
 
     public string CombinePath(string resource, bool append = true)
     {
-        if (string.IsNullOrWhiteSpace(resource)) throw new ArgumentNullException(nameof(resource));
+        if (string.IsNullOrWhiteSpace(resource))
+            throw new ArgumentNullException(nameof(resource));
 
         resource = resource.TrimStart(['/', '\\']).ToLower();
         if (!resource.StartsWith("api/v2/") &&
@@ -64,7 +65,7 @@ internal class PokeApiService(
         if (!parts.Last().Equals("index.json") && append)
             parts = [.. parts, "index.json"];
 
-       return Path.Combine(parts);
+        return Path.Combine(parts);
     }
 
     public T Clone<T>(T item)
@@ -82,7 +83,8 @@ internal class PokeApiService(
             if (cache.Value && _cache.TryGetValue(resource, out var cached))
                 return Clone((T?)cached);
 
-            if (!File.Exists(resource)) return default;
+            if (!File.Exists(resource))
+                return default;
 
             using var stream = File.OpenRead(resource);
             var item = await _json.Deserialize<T>(stream, token);
@@ -105,7 +107,8 @@ internal class PokeApiService(
     public async Task<T?> Fetch<T>(int id, bool? cache = null, CancellationToken token = default)
     {
         var type = Cache<T>();
-        if (type is null) return default;
+        if (type is null)
+            return default;
 
         var path = type.Attribute.Name.Replace("([0-9]{1,})", id.ToString());
         return await Fetch<T>(path, cache, token);
@@ -119,7 +122,8 @@ internal class PokeApiService(
     public async Task<PkIndex?> Index<T>(bool? cache = null, CancellationToken token = default)
     {
         var type = Cache<T>();
-        if (type is null) return null;
+        if (type is null)
+            return null;
 
         var path = type.Attribute.Name.Replace("([0-9]{1,})", "").TrimEnd('/');
         return await Index(path, cache, token);
@@ -128,7 +132,8 @@ internal class PokeApiService(
     public async Task<T[]> Get<T>(int id, bool? cache = null, CancellationToken token = default)
     {
         var type = Cache<T>();
-        if (type is null) return [];
+        if (type is null)
+            return [];
 
         var path = type.Attribute.Name.Replace("([0-9]{1,})", id.ToString());
         return await Get<T>(path, cache, token);
@@ -164,11 +169,13 @@ internal class PokeApiService(
     public int[] Ids<T>()
     {
         var cache = Cache<T>();
-        if (cache is null) return [];
+        if (cache is null)
+            return [];
 
         var path = cache.Attribute.Name.TrimStart("/api/v2/").Split('/').First();
         var dir = CombinePath(path, false);
-        if (!Directory.Exists(dir)) return [];
+        if (!Directory.Exists(dir))
+            return [];
 
         var dirs = Directory.GetDirectories(dir);
         return [..dirs

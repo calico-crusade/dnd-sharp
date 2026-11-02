@@ -24,8 +24,14 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
     {
         var palette = CharacterSheetThemes.Find(theme) ?? throw new ArgumentException("Unknown character sheet theme.", nameof(theme));
         await RenderGate.WaitAsync(token);
-        try { return await RenderCoreAsync(snapshot, palette, token); }
-        finally { RenderGate.Release(); }
+        try
+        {
+            return await RenderCoreAsync(snapshot, palette, token);
+        }
+        finally
+        {
+            RenderGate.Release();
+        }
     }
 
     private async Task<Stream> RenderCoreAsync(CharacterSnapshot snapshot, CharacterSheetTheme palette, CancellationToken token)
@@ -34,7 +40,8 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
         var gold = palette.PrimaryAccent ?? Gold;
         token.ThrowIfCancellationRequested();
         var root = snapshot.Character;
-        if (root.ValueKind != JsonValueKind.Object) throw new ArgumentException("Character data is unavailable.");
+        if (root.ValueKind != JsonValueKind.Object)
+            throw new ArgumentException("Character data is unavailable.");
         using var typeface = LoadTypeface();
         using var bitmap = new SKBitmap(Width, MaxHeight);
         using var canvas = new SKCanvas(bitmap);
@@ -54,7 +61,10 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
             using var border = new SKPaint { IsAntialias = true, Color = gold, Style = SKPaintStyle.Stroke, StrokeWidth = 5 };
             canvas.DrawCircle(160, 88, 67, border);
             canvas.Save();
-            using var clipBuilder = new SKPathBuilder(); clipBuilder.AddCircle(160, 88, 62); using var clip = clipBuilder.Detach(); canvas.ClipPath(clip, antialias: true);
+            using var clipBuilder = new SKPathBuilder();
+            clipBuilder.AddCircle(160, 88, 62);
+            using var clip = clipBuilder.Detach();
+            canvas.ClipPath(clip, antialias: true);
             var side = Math.Min(image.Width, image.Height);
             var source = SKRect.Create((image.Width - side) / 2f, (image.Height - side) / 2f, side, side);
             canvas.DrawImage(image, source, SKRect.Create(98, 26, 124, 124), new SKSamplingOptions(SKFilterMode.Linear), paint);
@@ -118,7 +128,8 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
             var modifier = traits.TryGetValue(traitKey, out var value) ? $" ({Signed(value)})" : "";
             details.Add(new Entry("Spellcast trait", spellcast + modifier));
         }
-        if (int.TryParse(Text(sheet, "scarCount"), out var scars) && scars > 0) details.Add(new Entry("Scars", scars.ToString()));
+        if (int.TryParse(Text(sheet, "scarCount"), out var scars) && scars > 0)
+            details.Add(new Entry("Scars", scars.ToString()));
         AddCard(columns.Middle, "ADDITIONAL DETAILS", details);
         var cards = columns.Left.Concat(columns.Middle).Concat(columns.Right).Select(card => render.Prepare(card, panelWidth)).ToArray();
         var assignments = SheetColumnLayout.Arrange(cards.Select(card => card.Height + 20).ToArray(), statsHeight: 530);
@@ -135,7 +146,8 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
         render.Text("D&D Sharp - Fan made", 14, 1210, bottom - 28, 340, true, SKColor.Parse("C7CCD5"), centered: true);
         token.ThrowIfCancellationRequested();
         using var subset = new SKBitmap();
-        if (!bitmap.ExtractSubset(subset, new SKRectI(0, 0, Width, bottom))) throw new InvalidOperationException("Could not crop the character sheet.");
+        if (!bitmap.ExtractSubset(subset, new SKRectI(0, 0, Width, bottom)))
+            throw new InvalidOperationException("Could not crop the character sheet.");
         using var cropped = SKImage.FromBitmap(subset);
         using var png = cropped.Encode(SKEncodedImageFormat.Png, 100);
         return new MemoryStream(png.ToArray(), writable: false);
@@ -157,7 +169,9 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
 
     private static (List<Card> Left, List<Card> Middle, List<Card> Right) CreateColumns(JsonElement root, IReadOnlyList<CharacterFeature>? features, CharacterInventory? inventory, JsonElement sheet)
     {
-        var left = new List<Card>(); var middle = new List<Card>(); var right = new List<Card>();
+        var left = new List<Card>();
+        var middle = new List<Card>();
+        var right = new List<Card>();
         AddCard(left, "CONDITIONS", ActiveConditions(root));
         AddCard(left, "EXPERIENCES", Items(root, "experiences"));
         if (features is not null)
@@ -179,7 +193,8 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
             var gold = new[] { (inventory.Coins, "coin"), (inventory.Handfuls, "handful"), (inventory.Bags, "bag"), (inventory.Chests, "chest") }
                 .Where(item => item.Item1 > 0).Select(item => $"{item.Item1} {item.Item2}{(item.Item1 == 1 ? "" : "s")}");
             var goldText = string.Join("  •  ", gold);
-            if (goldText.Length > 0) inventoryEntries.Add(new Entry("Gold", goldText));
+            if (goldText.Length > 0)
+                inventoryEntries.Add(new Entry("Gold", goldText));
             AddCard(middle, "INVENTORY", inventoryEntries);
         }
         else
@@ -193,7 +208,8 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
         AddCard(right, "BACKGROUND", Items(root, "background"));
         AddCard(right, "CONNECTIONS", Items(root, "connections"));
         var beast = Object(root, "beastform");
-        if (Text(beast, "active") == "true") AddCard(right, "BEASTFORM", [new Entry(Text(beast, "name") ?? "Active", "")]);
+        if (Text(beast, "active") == "true")
+            AddCard(right, "BEASTFORM", [new Entry(Text(beast, "name") ?? "Active", "")]);
         return (left, middle, right);
     }
 
@@ -201,7 +217,8 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
     {
         var conditions = Object(root, "conditions");
         foreach (var item in Array(conditions, "core").Concat(Array(conditions, "custom")))
-            if (Text(item, "active") == "true") yield return new Entry(Text(item, "label") ?? Text(item, "name") ?? "Condition", "");
+            if (Text(item, "active") == "true")
+                yield return new Entry(Text(item, "label") ?? Text(item, "name") ?? "Condition", "");
     }
 
     private static IEnumerable<Entry> Items(JsonElement root, string key)
@@ -209,25 +226,34 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
         var all = Array(root, key).ToArray();
         foreach (var item in all.Take(50))
         {
-            if (item.ValueKind == JsonValueKind.String) { yield return new Entry(item.GetString() ?? "", ""); continue; }
-            if (item.ValueKind != JsonValueKind.Object) continue;
+            if (item.ValueKind == JsonValueKind.String)
+            {
+                yield return new Entry(item.GetString() ?? "", "");
+                continue;
+            }
+            if (item.ValueKind != JsonValueKind.Object)
+                continue;
             var name = Text(item, "name") ?? Text(item, "label") ?? Text(item, "title") ?? "";
             var info = string.Join("  •  ", new[] { Text(item, "modifier"), Text(item, "trait"), Text(item, "damage"), Text(item, "range"),
                 Text(item, "domain"), Prefix("Level ", Text(item, "level")), Prefix("Recall ", Text(item, "recall")) }.Where(value => !string.IsNullOrWhiteSpace(value)));
             var quantity = Text(item, "quantity");
-            if (int.TryParse(quantity, out var count) && count > 1) info = JoinNonEmpty("  •  ", info, $"×{count}");
+            if (int.TryParse(quantity, out var count) && count > 1)
+                info = JoinNonEmpty("  •  ", info, $"×{count}");
             var description = Text(item, "description") ?? Text(item, "text") ?? "";
-            if (description.Length > 6000) description = description[..6000] + " …";
+            if (description.Length > 6000)
+                description = description[..6000] + " …";
             if (!string.IsNullOrWhiteSpace(name) || !string.IsNullOrWhiteSpace(description))
                 yield return new Entry(name, JoinNonEmpty("\n", info, description));
         }
-        if (all.Length > 50) yield return new Entry("Additional entries omitted", "");
+        if (all.Length > 50)
+            yield return new Entry("Additional entries omitted", "");
     }
 
     private static void AddCard(List<Card> column, string title, IEnumerable<Entry> items, bool accent = false)
     {
         var entries = items.ToArray();
-        if (entries.Length > 0) column.Add(new Card(title, entries, accent));
+        if (entries.Length > 0)
+            column.Add(new Card(title, entries, accent));
     }
     private static string? Prefix(string prefix, string? value) => string.IsNullOrWhiteSpace(value) ? null : prefix + value;
     private static string JoinNonEmpty(string separator, params string?[] values) => string.Join(separator, values.Where(value => !string.IsNullOrWhiteSpace(value)));
@@ -236,10 +262,13 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
     private static IEnumerable<JsonElement> Array(JsonElement root, string key) => root.ValueKind == JsonValueKind.Object && root.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Array ? value.EnumerateArray().ToArray() : [];
     private static string? Text(JsonElement root, string key)
     {
-        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(key, out var value)) return null;
-        if (value.ValueKind is not (JsonValueKind.String or JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False)) return null;
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(key, out var value))
+            return null;
+        if (value.ValueKind is not (JsonValueKind.String or JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False))
+            return null;
         var raw = value.ValueKind == JsonValueKind.String ? value.GetString() : value.GetRawText();
-        if (raw is null) return null;
+        if (raw is null)
+            return null;
         return Plain(raw);
     }
 
@@ -248,25 +277,33 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
     private async Task<SKBitmap?> LoadPortraitAsync(string? address, CancellationToken token)
     {
         if (!Uri.TryCreate(address, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || uri.Port != 443 || uri.UserInfo.Length != 0 ||
-            !(uri.Host.Equals("heartofdaggers.com", StringComparison.OrdinalIgnoreCase) || uri.Host.EndsWith(".cloudfront.net", StringComparison.OrdinalIgnoreCase))) return null;
+            !(uri.Host.Equals("heartofdaggers.com", StringComparison.OrdinalIgnoreCase) || uri.Host.EndsWith(".cloudfront.net", StringComparison.OrdinalIgnoreCase)))
+            return null;
         try
         {
             using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token);
-            if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > 4_000_000) return null;
+            if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength > 4_000_000)
+                return null;
             await using var input = await response.Content.ReadAsStreamAsync(token);
             using var buffer = new MemoryStream();
-            var chunk = new byte[16384]; int read;
+            var chunk = new byte[16384];
+            int read;
             while ((read = await input.ReadAsync(chunk, token)) > 0)
             {
-                if (buffer.Length + read > 4_000_000) return null;
+                if (buffer.Length + read > 4_000_000)
+                    return null;
                 buffer.Write(chunk, 0, read);
             }
             using var data = SKData.CreateCopy(buffer.ToArray());
             using var codec = SKCodec.Create(data);
-            if (codec is null || codec.Info.Width > 4096 || codec.Info.Height > 4096 || codec.Info.Width <= 0 || codec.Info.Height <= 0) return null;
+            if (codec is null || codec.Info.Width > 4096 || codec.Info.Height > 4096 || codec.Info.Width <= 0 || codec.Info.Height <= 0)
+                return null;
             return SKBitmap.Decode(codec);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException) { return null; }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null;
+        }
     }
 
     private static SKTypeface LoadTypeface()
@@ -288,30 +325,68 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
     {
         public CharacterSheetTheme Theme => theme;
         public bool Truncated { get; private set; }
-        public void Rect(SKColor color, float x, float y, float w, float h) { paint.Color = color; paint.Style = SKPaintStyle.Fill; canvas.DrawRect(x, y, w, h, paint); }
-        public void Circle(SKColor color, float x, float y, float radius) { paint.Color = color; paint.Style = SKPaintStyle.Fill; canvas.DrawCircle(x, y, radius, paint); }
+        public void Rect(SKColor color, float x, float y, float w, float h)
+        {
+            paint.Color = color;
+            paint.Style = SKPaintStyle.Fill;
+            canvas.DrawRect(x, y, w, h, paint);
+        }
+        public void Circle(SKColor color, float x, float y, float radius)
+        {
+            paint.Color = color;
+            paint.Style = SKPaintStyle.Fill;
+            canvas.DrawCircle(x, y, radius, paint);
+        }
         public void Text(string text, float size, float x, float y, float width, bool bold, SKColor color, bool centered = false)
         {
             using var font = new SKFont(typeface, size) { Embolden = bold };
-            if (font.MeasureText(text) > width) font.Size *= width / font.MeasureText(text);
-            paint.Color = color; paint.Style = SKPaintStyle.Fill;
+            if (font.MeasureText(text) > width)
+                font.Size *= width / font.MeasureText(text);
+            paint.Color = color;
+            paint.Style = SKPaintStyle.Fill;
             canvas.DrawText(text, centered ? x + width / 2 : x, y - font.Metrics.Ascent, centered ? SKTextAlign.Center : SKTextAlign.Left, font, paint);
         }
         public void Diamond(float x, float y, float radius, SKColor color)
         {
-            using var builder = new SKPathBuilder(); builder.MoveTo(x, y - radius); builder.LineTo(x + radius, y); builder.LineTo(x, y + radius); builder.LineTo(x - radius, y); builder.Close(); using var path = builder.Detach();
-            paint.Color = color; paint.Style = SKPaintStyle.Fill; canvas.DrawPath(path, paint);
-            paint.Color = SKColor.Parse("8C8F9A"); paint.Style = SKPaintStyle.Stroke; paint.StrokeWidth = 1; canvas.DrawPath(path, paint); paint.Style = SKPaintStyle.Fill;
+            using var builder = new SKPathBuilder();
+            builder.MoveTo(x, y - radius);
+            builder.LineTo(x + radius, y);
+            builder.LineTo(x, y + radius);
+            builder.LineTo(x - radius, y);
+            builder.Close();
+            using var path = builder.Detach();
+            paint.Color = color;
+            paint.Style = SKPaintStyle.Fill;
+            canvas.DrawPath(path, paint);
+            paint.Color = SKColor.Parse("8C8F9A");
+            paint.Style = SKPaintStyle.Stroke;
+            paint.StrokeWidth = 1;
+            canvas.DrawPath(path, paint);
+            paint.Style = SKPaintStyle.Fill;
         }
         public void Shield(float x, float y, float w, float h)
         {
-            using var builder = new SKPathBuilder(); builder.MoveTo(x, y); builder.LineTo(x + w, y); builder.LineTo(x + w - 4, y + h * .75f); builder.LineTo(x + w / 2, y + h); builder.LineTo(x + 4, y + h * .75f); builder.Close(); using var path = builder.Detach();
-            paint.Color = theme.Shield; paint.Style = SKPaintStyle.Fill; canvas.DrawPath(path, paint);
-            paint.Color = theme.Border; paint.Style = SKPaintStyle.Stroke; paint.StrokeWidth = 3; canvas.DrawPath(path, paint); paint.Style = SKPaintStyle.Fill;
+            using var builder = new SKPathBuilder();
+            builder.MoveTo(x, y);
+            builder.LineTo(x + w, y);
+            builder.LineTo(x + w - 4, y + h * .75f);
+            builder.LineTo(x + w / 2, y + h);
+            builder.LineTo(x + 4, y + h * .75f);
+            builder.Close();
+            using var path = builder.Detach();
+            paint.Color = theme.Shield;
+            paint.Style = SKPaintStyle.Fill;
+            canvas.DrawPath(path, paint);
+            paint.Color = theme.Border;
+            paint.Style = SKPaintStyle.Stroke;
+            paint.StrokeWidth = 3;
+            canvas.DrawPath(path, paint);
+            paint.Style = SKPaintStyle.Fill;
         }
         public void Panel(float x, float y, float width, float height, string title)
         {
-            Rect(theme.Paper, x, y, width, height); Rect(theme.Header, x, y, width, 40);
+            Rect(theme.Paper, x, y, width, height);
+            Rect(theme.Header, x, y, width, 40);
             Rect(theme.Border, x, y + 39, width, 2);
             Text(title, 16, x + 15, y + 10, width - 30, true, theme.Ink, true);
         }
@@ -320,25 +395,42 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
             var lines = new List<(string Text, bool Bold)>();
             foreach (var entry in card.Entries)
             {
-                if (!string.IsNullOrWhiteSpace(entry.Name)) foreach (var line in Wrap(entry.Name, width - 48, true)) lines.Add((line, true));
-                if (!string.IsNullOrWhiteSpace(entry.Details)) foreach (var line in Wrap(entry.Details, width - 48, false)) lines.Add((line, false));
+                if (!string.IsNullOrWhiteSpace(entry.Name))
+                    foreach (var line in Wrap(entry.Name, width - 48, true))
+                        lines.Add((line, true));
+                if (!string.IsNullOrWhiteSpace(entry.Details))
+                    foreach (var line in Wrap(entry.Details, width - 48, false))
+                        lines.Add((line, false));
                 lines.Add(("", false));
             }
             return new PreparedCard(card, lines);
         }
         public int Card(PreparedCard prepared, int x, int y, int width, int limit)
         {
-            if (y >= limit - 100) { Truncated = true; return y; }
+            if (y >= limit - 100)
+            {
+                Truncated = true;
+                return y;
+            }
             var card = prepared.Card;
             var lines = prepared.Lines;
             var available = Math.Min(prepared.Height, limit - y);
-            if (available < 80) { Truncated = true; return y; }
+            if (available < 80)
+            {
+                Truncated = true;
+                return y;
+            }
             Panel(x, y, width, available, card.Title);
-            if (card.Accent) Rect(theme.SecondaryAccent ?? SKColor.Parse("8B2C37"), x, y + 40, 5, available - 40);
+            if (card.Accent)
+                Rect(theme.SecondaryAccent ?? SKColor.Parse("8B2C37"), x, y + 40, 5, available - 40);
             var visible = Math.Max(0, (available - 60) / 23);
             for (var i = 0; i < Math.Min(visible, lines.Count); i++)
                 Text(lines[i].Text, lines[i].Bold ? 18 : 16, x + 22, y + 51 + i * 23, width - 44, lines[i].Bold, lines[i].Bold ? theme.Ink : theme.Muted);
-            if (visible < lines.Count) { Truncated = true; Text("Additional content omitted", 14, x + 22, y + available - 23, width - 44, true, theme.Muted); }
+            if (visible < lines.Count)
+            {
+                Truncated = true;
+                Text("Additional content omitted", 14, x + 22, y + available - 23, width - 44, true, theme.Muted);
+            }
             return y + available + 20;
         }
         private IEnumerable<string> Wrap(string text, int width, bool bold)
@@ -350,10 +442,16 @@ public sealed class CharacterSheetRenderer(HttpClient http) : ICharacterSheetRen
                 foreach (var word in paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries))
                 {
                     var candidate = line.Length == 0 ? word : line + " " + word;
-                    if (line.Length > 0 && font.MeasureText(candidate) > width) { yield return line; line = word; }
-                    else line = candidate;
+                    if (line.Length > 0 && font.MeasureText(candidate) > width)
+                    {
+                        yield return line;
+                        line = word;
+                    }
+                    else
+                        line = candidate;
                 }
-                if (line.Length > 0) yield return line;
+                if (line.Length > 0)
+                    yield return line;
             }
         }
     }

@@ -31,7 +31,8 @@ public sealed class BotCommands(
         Execute(async token =>
         {
             var mon = await Find(pokemon, token);
-            if (mon is null) return;
+            if (mon is null)
+                return;
             await ModifyOriginalResponseAsync(message => message.Embed = PokemonCommandService.RawStats(mon));
         });
 
@@ -42,7 +43,8 @@ public sealed class BotCommands(
         Execute(async token =>
         {
             var mon = await Find(pokemon, token);
-            if (mon is null) return;
+            if (mon is null)
+                return;
             var character = await pokemonService.TranslateAsync(mon, level, token)
                 ?? throw new InvalidOperationException("Pokémon translation failed.");
             using var card = await cards.RenderAsync(character, token);

@@ -41,12 +41,16 @@ internal static class EmbeddedState
         {
             foreach (var key in obj.Select(property => property.Key).ToArray())
             {
-                if (IsCredential(key)) obj.Remove(key);
-                else if (obj[key] is { } child) Scrub(child);
+                if (IsCredential(key))
+                    obj.Remove(key);
+                else if (obj[key] is { } child)
+                    Scrub(child);
             }
         }
         else if (node is JsonArray array)
-            foreach (var child in array) if (child is not null) Scrub(child);
+            foreach (var child in array)
+            if (child is not null)
+                Scrub(child);
     }
 
     private static bool IsCredential(string key) =>

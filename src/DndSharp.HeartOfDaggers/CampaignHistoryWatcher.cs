@@ -17,13 +17,18 @@ public sealed class CampaignHistoryWatcher(HeartOfDaggersClient api, ILogger<Cam
         var session = await api.GetCampaignAsync(campaign, token);
         var sessionId = session.Id;
         var tracker = existingTracker ?? new CampaignHistoryTracker(session.Id);
-        if (tracker.CampaignId != session.Id) throw new ArgumentException("History tracker belongs to a different campaign.", nameof(existingTracker));
-        if (!tracker.HasBaseline) tracker.Seed(await api.GetCampaignHistoryAsync(session, token));
+        if (tracker.CampaignId != session.Id)
+            throw new ArgumentException("History tracker belongs to a different campaign.", nameof(existingTracker));
+        if (!tracker.HasBaseline)
+            tracker.Seed(await api.GetCampaignHistoryAsync(session, token));
 
         while (!token.IsCancellationRequested)
         {
             // Obtain a fresh socket credential and membership before each connection.
-            try { session = await api.GetCampaignAsync(campaign, token); }
+            try
+            {
+                session = await api.GetCampaignAsync(campaign, token);
+            }
             catch (HttpRequestException)
             {
                 logger.LogWarning("Could not refresh campaign information; retrying.");
@@ -91,9 +96,18 @@ public sealed class CampaignHistoryWatcher(HeartOfDaggersClient api, ILogger<Cam
                 await foreach (var entry in incoming.Reader.ReadAllAsync(token))
                     await Deliver(entry);
             }
-            catch (OperationCanceledException) when (token.IsCancellationRequested) { break; }
-            catch (UnauthorizedAccessException) { throw; }
-            catch (HistoryConsumerException ex) { throw ex.InnerException!; }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                throw;
+            }
+            catch (HistoryConsumerException ex)
+            {
+                throw ex.InnerException!;
+            }
             catch (Exception ex)
             {
                 // Avoid logging the socket URL, token or server payload.
@@ -101,7 +115,8 @@ public sealed class CampaignHistoryWatcher(HeartOfDaggersClient api, ILogger<Cam
             }
             finally
             {
-                if (socket.Connected) await socket.DisconnectAsync();
+                if (socket.Connected)
+                    await socket.DisconnectAsync();
             }
 
             if (!token.IsCancellationRequested)
@@ -110,10 +125,20 @@ public sealed class CampaignHistoryWatcher(HeartOfDaggersClient api, ILogger<Cam
 
         async Task Deliver(JsonElement entry)
         {
-            if (!tracker.TryObserve(entry, out var item)) return;
-            try { await onItem(item!, token); }
-            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-            catch (Exception ex) { throw new HistoryConsumerException(ex); }
+            if (!tracker.TryObserve(entry, out var item))
+                return;
+            try
+            {
+                await onItem(item!, token);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new HistoryConsumerException(ex);
+            }
         }
     }
 

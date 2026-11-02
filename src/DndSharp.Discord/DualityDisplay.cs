@@ -27,12 +27,15 @@ public static class DualityDisplay
 
         var fear = Number(duality, "fear");
         var hope = Number(duality, "hope");
-        if (fear is < 1 or > 12 || hope is < 1 or > 12 || fear is null || hope is null) return null;
-        if (fear == hope) return settings.Critical;
+        if (fear is < 1 or > 12 || hope is < 1 or > 12 || fear is null || hope is null)
+            return null;
+        if (fear == hope)
+            return settings.Critical;
 
         var withFear = fear > hope;
         var total = Number(entry, "total");
-        if (total is null || settings.Difficulty is null) return withFear ? settings.Fear : settings.Hope;
+        if (total is null || settings.Difficulty is null)
+            return withFear ? settings.Fear : settings.Hope;
         var success = total >= settings.Difficulty;
         return (success, withFear) switch
         {

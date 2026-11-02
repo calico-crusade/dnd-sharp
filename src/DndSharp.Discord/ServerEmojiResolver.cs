@@ -32,7 +32,8 @@ internal static class ServerEmojiResolver
             var name = match.Groups["name"];
             if (!name.Success)
             {
-                if (!strict) return match.Value;
+                if (!strict)
+                    return match.Value;
                 if (!ulong.TryParse(match.Groups["id"].Value, out var id))
                     throw new EmojiResolutionException("The custom emoji ID is invalid.");
                 var emoji = emotes.FirstOrDefault(item => item.Id == id && item.Available);
@@ -41,8 +42,10 @@ internal static class ServerEmojiResolver
                 return emoji.Markup;
             }
             var matches = emotes.Where(emote => emote.Available && emote.Name.Equals(name.Value, StringComparison.OrdinalIgnoreCase)).ToArray();
-            if (matches.Length == 1) return matches[0].Markup;
-            if (!strict) return match.Value;
+            if (matches.Length == 1)
+                return matches[0].Markup;
+            if (!strict)
+                return match.Value;
             if (matches.Length == 0)
                 throw new EmojiResolutionException($"No accessible emoji matches :{name.Value}:. Invite the bot to its server, use a Unicode emoji, or upload an application emoji.");
             throw new EmojiResolutionException($"More than one accessible emoji matches :{name.Value}:. Paste the full custom emoji markup to choose one.");
@@ -53,7 +56,8 @@ internal static class ServerEmojiResolver
     {
         foreach (Match match in Tokens.Matches(text))
             if (match.Groups["id"].Success && ulong.TryParse(match.Groups["id"].Value, out var id) &&
-                emotes.Any(emoji => emoji.Id == id && !emoji.IsApplication && emoji.GuildId is not null && emoji.GuildId != targetGuild)) return true;
+                emotes.Any(emoji => emoji.Id == id && !emoji.IsApplication && emoji.GuildId is not null && emoji.GuildId != targetGuild))
+                return true;
         return false;
     }
 }

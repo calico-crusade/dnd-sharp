@@ -29,16 +29,23 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
     private Task BeginAsync(string action) => RunAsync(async token =>
     {
         var campaigns = await subscriptions.ListCampaignsAsync(Context.Guild.Id, token);
-        if (campaigns.Count == 0) { await ClearAsync("This server is not watching any campaigns."); return; }
-        if (campaigns.Count == 1) await ShowCharactersAsync(action, campaigns[0].CampaignId, 0, token);
-        else await ShowCampaignsAsync(action, 0, token);
+        if (campaigns.Count == 0)
+        {
+            await ClearAsync("This server is not watching any campaigns.");
+            return;
+        }
+        if (campaigns.Count == 1)
+            await ShowCharactersAsync(action, campaigns[0].CampaignId, 0, token);
+        else
+            await ShowCampaignsAsync(action, 0, token);
     }, component: false);
 
     [ComponentInteraction("character-campaign:*:*")]
     public Task ChooseCampaign(string action, string owner, string[] values) => RunAsync(async token =>
     {
         EnsureOwner(owner);
-        if (values.Length != 1 || !long.TryParse(values[0], out var campaignId)) throw new ArgumentException();
+        if (values.Length != 1 || !long.TryParse(values[0], out var campaignId))
+            throw new ArgumentException();
         ValidateAction(action);
         await ShowCharactersAsync(action, campaignId, 0, token);
     });
@@ -47,7 +54,8 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
     public Task CampaignPage(string action, string owner, string page) => RunAsync(async token =>
     {
         EnsureOwner(owner);
-        if (!int.TryParse(page, out var index)) throw new ArgumentException();
+        if (!int.TryParse(page, out var index))
+            throw new ArgumentException();
         ValidateAction(action);
         await ShowCampaignsAsync(action, index, token);
     });
@@ -58,13 +66,19 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
         EnsureOwner(owner);
         ValidateAction(action);
         if (!long.TryParse(campaign, out var campaignId) || values.Length != 1 ||
-            !long.TryParse(values[0], out var characterId) || characterId <= 0) throw new ArgumentException();
+            !long.TryParse(values[0], out var characterId) || characterId <= 0)
+            throw new ArgumentException();
         var session = await GetSessionAsync(campaignId, token);
-        if (action != "unclaim" && !session.CharacterIds.Contains(characterId)) { await ClearAsync("That character is no longer in this campaign. Run the command again."); return; }
+        if (action != "unclaim" && !session.CharacterIds.Contains(characterId))
+        {
+            await ClearAsync("That character is no longer in this campaign. Run the command again.");
+            return;
+        }
         if (action == "sheet")
         {
             var menu = new SelectMenuBuilder().WithCustomId($"character-sheet-theme:{Context.User.Id}:{campaignId}:{characterId}").WithPlaceholder("Choose a sheet theme");
-            foreach (var theme in CharacterSheetThemes.All) menu.AddOption(theme.Label, theme.Id);
+            foreach (var theme in CharacterSheetThemes.All)
+                menu.AddOption(theme.Label, theme.Id);
             await ShowAsync("Choose a theme for the character sheet.", new ComponentBuilder().WithSelectMenu(menu).Build());
             return;
         }
@@ -86,9 +100,14 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
     {
         EnsureOwner(owner);
         if (!long.TryParse(campaign, out var campaignId) || !long.TryParse(character, out var characterId) || characterId <= 0 ||
-            values.Length != 1 || CharacterSheetThemes.Find(values[0]) is null) throw new ArgumentException();
+            values.Length != 1 || CharacterSheetThemes.Find(values[0]) is null)
+            throw new ArgumentException();
         var session = await GetSessionAsync(campaignId, token);
-        if (!session.CharacterIds.Contains(characterId)) { await ClearAsync("That character is no longer in this campaign. Run the command again."); return; }
+        if (!session.CharacterIds.Contains(characterId))
+        {
+            await ClearAsync("That character is no longer in this campaign. Run the command again.");
+            return;
+        }
         var snapshot = await api.GetCharacterDetailsAsync(characterId, token);
         await using var image = await renderer.RenderAsync(snapshot, values[0], token);
         await FollowupWithFileAsync(image, "character-sheet.png", text: "Character sheet", ephemeral: false, allowedMentions: AllowedMentions.None);
@@ -99,7 +118,8 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
     public Task CharacterPage(string action, string owner, string campaign, string page) => RunAsync(async token =>
     {
         EnsureOwner(owner);
-        if (!long.TryParse(campaign, out var campaignId) || !int.TryParse(page, out var index)) throw new ArgumentException();
+        if (!long.TryParse(campaign, out var campaignId) || !int.TryParse(page, out var index))
+            throw new ArgumentException();
         ValidateAction(action);
         await ShowCharactersAsync(action, campaignId, index, token);
     });
@@ -107,13 +127,24 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
     private async Task ShowCampaignsAsync(string action, int page, CancellationToken token)
     {
         var campaigns = (await subscriptions.ListCampaignsAsync(Context.Guild.Id, token)).OrderBy(item => item.CampaignSlug, StringComparer.OrdinalIgnoreCase).ToArray();
-        if (campaigns.Length == 0) { await ClearAsync("This server is not watching any campaigns."); return; }
+        if (campaigns.Length == 0)
+        {
+            await ClearAsync("This server is not watching any campaigns.");
+            return;
+        }
         var index = PageIndex(page, campaigns.Length);
         var selected = campaigns.Skip(index * PageSize).Take(PageSize).ToArray();
         var names = await Task.WhenAll(selected.Select(async item =>
         {
-            try { var session = await api.GetCampaignAsync(item.CampaignSlug, token); return session.Id == item.CampaignId ? session.Name : item.CampaignSlug; }
-            catch (Exception ex) when (ex is not OperationCanceledException) { return item.CampaignSlug; }
+            try
+            {
+                var session = await api.GetCampaignAsync(item.CampaignSlug, token);
+                return session.Id == item.CampaignId ? session.Name : item.CampaignSlug;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return item.CampaignSlug;
+            }
         }));
         var menu = new SelectMenuBuilder().WithCustomId($"character-campaign:{action}:{Context.User.Id}").WithPlaceholder("Choose a campaign");
         for (var i = 0; i < selected.Length; i++)
@@ -128,7 +159,11 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
         var session = await GetSessionAsync(campaignId, token);
         var claims = await store.ClaimsAsync(Context.Guild.Id, campaignId, token);
         var ids = (action == "unclaim" ? claims.Where(claim => claim.UserId == Context.User.Id).Select(claim => claim.CharacterId) : session.CharacterIds).Order().ToArray();
-        if (ids.Length == 0) { await ClearAsync(action == "unclaim" ? "You have no linked characters in this campaign." : "There are no characters visible in this campaign."); return; }
+        if (ids.Length == 0)
+        {
+            await ClearAsync(action == "unclaim" ? "You have no linked characters in this campaign." : "There are no characters visible in this campaign.");
+            return;
+        }
         var index = PageIndex(page, ids.Length);
         var selected = ids.Skip(index * PageSize).Take(PageSize).ToArray();
         var names = await Task.WhenAll(selected.Select(async id =>
@@ -140,7 +175,10 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
                     character.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String
                     ? name.GetString() : null;
             }
-            catch (Exception ex) when (ex is not OperationCanceledException) { return null; }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return null;
+            }
         }));
         var menu = new SelectMenuBuilder().WithCustomId($"character-choice:{action}:{Context.User.Id}:{campaignId}").WithPlaceholder(action == "sheet" ? "Choose a character" : "Choose your character");
         for (var i = 0; i < selected.Length; i++)
@@ -160,7 +198,8 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
         var item = (await subscriptions.ListCampaignsAsync(Context.Guild.Id, token)).FirstOrDefault(item => item.CampaignId == campaignId)
             ?? throw new ArgumentException("The campaign is no longer watched.");
         var session = await api.GetCampaignAsync(item.CampaignSlug, token);
-        if (session.Id != campaignId) throw new InvalidOperationException("Campaign identity changed.");
+        if (session.Id != campaignId)
+            throw new InvalidOperationException("Campaign identity changed.");
         return session;
     }
 
@@ -174,24 +213,29 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
 
     private static void AddPageButtons(ComponentBuilder builder, int page, int count, string prefix)
     {
-        if (count <= PageSize) return;
+        if (count <= PageSize)
+            return;
         builder.WithButton("Previous", $"{prefix}:{page - 1}", disabled: page == 0, row: 1)
             .WithButton("Next", $"{prefix}:{page + 1}", disabled: (page + 1) * PageSize >= count, row: 1);
     }
 
     private void EnsureOwner(string owner)
     {
-        if (!ulong.TryParse(owner, out var userId) || userId != Context.User.Id) throw new ArgumentException("This picker belongs to another user.");
+        if (!ulong.TryParse(owner, out var userId) || userId != Context.User.Id)
+            throw new ArgumentException("This picker belongs to another user.");
     }
 
     private static void ValidateAction(string action)
     {
-        if (action is not ("claim" or "unclaim" or "sheet")) throw new ArgumentException("Unknown action.");
+        if (action is not ("claim" or "unclaim" or "sheet"))
+            throw new ArgumentException("Unknown action.");
     }
 
     private Task ShowAsync(string text, MessageComponent components) => ModifyOriginalResponseAsync(message =>
     {
-        message.Content = text; message.Components = components; message.AllowedMentions = AllowedMentions.None;
+        message.Content = text;
+        message.Components = components;
+        message.AllowedMentions = AllowedMentions.None;
     });
 
     private Task ClearAsync(string text) => ShowAsync(text, new ComponentBuilder().Build());
@@ -200,7 +244,10 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
     {
         await DeferAsync(ephemeral: !component);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-        try { await action(timeout.Token); }
+        try
+        {
+            await action(timeout.Token);
+        }
         catch (MailboxSetupException ex)
         {
             await ClearAsync(ex.Message);

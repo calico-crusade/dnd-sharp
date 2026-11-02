@@ -97,10 +97,12 @@ public sealed class HeartOfDaggersClient(HttpClient http)
     {
         if (!character.TryGetProperty("fullSheetUrl", out var value) || value.ValueKind != JsonValueKind.String ||
             !Uri.TryCreate(value.GetString(), UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps ||
-            !uri.Host.Equals("heartofdaggers.com", StringComparison.OrdinalIgnoreCase)) return (null, [], null);
+            !uri.Host.Equals("heartofdaggers.com", StringComparison.OrdinalIgnoreCase))
+            return (null, [], null);
         var parts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (parts.Length != 2 || !parts[0].Equals("character", StringComparison.OrdinalIgnoreCase) ||
-            !parts[1].All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_')) return (null, [], null);
+            !parts[1].All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
+            return (null, [], null);
 
         using var response = await http.GetAsync($"character/{parts[1]}/", token);
         // Some campaign members may not share their full sheet with the caller.
@@ -117,69 +119,95 @@ public sealed class HeartOfDaggersClient(HttpClient http)
     {
         // The site exposes the read-only inventory action in the sheet's JavaScript configuration.
         var config = Regex.Match(html, @"window\.DHC_INV\s*=\s*\{(?<body>[^}]{0,10000})\}\s*;", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
-        if (!config.Success) return null;
+        if (!config.Success)
+            return null;
         var body = config.Groups["body"].Value;
         var nonce = Regex.Match(body, "\\bnonce\\s*:\\s*['\"](?<value>[A-Za-z0-9]+)['\"]", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
         var id = Regex.Match(body, @"\bpostId\s*:\s*(?<value>\d+)", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
-        if (!nonce.Success || !long.TryParse(id.Groups["value"].Value, out var postId) || postId != characterId) return null;
+        if (!nonce.Success || !long.TryParse(id.Groups["value"].Value, out var postId) || postId != characterId)
+            return null;
         using var form = new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["action"] = "dhc_inventory_get", ["nonce"] = nonce.Groups["value"].Value, ["post_id"] = characterId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            ["action"] = "dhc_inventory_get",
+            ["nonce"] = nonce.Groups["value"].Value,
+            ["post_id"] = characterId.ToString(System.Globalization.CultureInfo.InvariantCulture)
         });
         try
         {
             using var response = await http.PostAsync("wp-admin/admin-ajax.php", form, token);
-            if (!response.IsSuccessStatusCode) return null;
+            if (!response.IsSuccessStatusCode)
+                return null;
             await using var stream = await response.Content.ReadAsStreamAsync(token);
             using var json = await JsonDocument.ParseAsync(stream, cancellationToken: token);
             return ParseInventory(json.RootElement);
         }
-        catch (JsonException) { return null; }
-        catch (HttpRequestException) { return null; }
+        catch (JsonException)
+        {
+            return null;
+        }
+        catch (HttpRequestException)
+        {
+            return null;
+        }
     }
 
     internal static CharacterInventory? ParseInventory(JsonElement response)
     {
         if (response.ValueKind != JsonValueKind.Object || !response.TryGetProperty("success", out var success) || success.ValueKind != JsonValueKind.True ||
-            !response.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object) return null;
+            !response.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+            return null;
         var items = new List<CharacterInventoryItem>();
         var core = data.TryGetProperty("core_items", out var coreItems) && coreItems.ValueKind == JsonValueKind.Object ? coreItems : default;
-        if (core.ValueKind == JsonValueKind.Undefined && data.TryGetProperty("starting_items", out var starting) && starting.ValueKind == JsonValueKind.Object && starting.TryGetProperty("core_items", out var startingCore) && startingCore.ValueKind == JsonValueKind.Object) core = startingCore;
+        if (core.ValueKind == JsonValueKind.Undefined && data.TryGetProperty("starting_items", out var starting) && starting.ValueKind == JsonValueKind.Object && starting.TryGetProperty("core_items", out var startingCore) && startingCore.ValueKind == JsonValueKind.Object)
+            core = startingCore;
         var entries = data.TryGetProperty("fixed2", out var fixed2) && fixed2.ValueKind == JsonValueKind.Array ? fixed2 :
             data.TryGetProperty("fixed", out var legacy) && legacy.ValueKind == JsonValueKind.Array ? legacy : default;
         if (entries.ValueKind == JsonValueKind.Array)
-        foreach (var item in entries.EnumerateArray())
-        {
-            if (item.ValueKind == JsonValueKind.String) { var name = item.GetString(); if (!string.IsNullOrWhiteSpace(name)) items.Add(new(name, "", 1)); continue; }
-            if (item.ValueKind != JsonValueKind.Object) continue;
-            string? Value(JsonElement obj, string key) => obj.ValueKind == JsonValueKind.Object && obj.TryGetProperty(key, out var v) && v.ValueKind is JsonValueKind.String or JsonValueKind.Number ? v.ToString() : null;
-            var nameValue = Value(item, "text") ?? Value(item, "name"); var description = "";
-            var key = Value(item, "key");
-            if (!string.IsNullOrEmpty(key) && core.ValueKind == JsonValueKind.Object && core.TryGetProperty(key, out var record) && record.ValueKind == JsonValueKind.Object)
+            foreach (var item in entries.EnumerateArray())
             {
-                nameValue = Value(record, "name_override");
-                if (string.IsNullOrWhiteSpace(nameValue)) nameValue = Value(record, "name") ?? Value(record, "line");
-                if (record.TryGetProperty("data", out var detail)) description = Value(detail, "description") ?? Value(detail, "feat_text") ?? "";
+                if (item.ValueKind == JsonValueKind.String)
+                {
+                    var name = item.GetString();
+                    if (!string.IsNullOrWhiteSpace(name))
+                        items.Add(new(name, "", 1));
+                    continue;
+                }
+                if (item.ValueKind != JsonValueKind.Object)
+                    continue;
+                string? Value(JsonElement obj, string key) => obj.ValueKind == JsonValueKind.Object && obj.TryGetProperty(key, out var v) && v.ValueKind is JsonValueKind.String or JsonValueKind.Number ? v.ToString() : null;
+                var nameValue = Value(item, "text") ?? Value(item, "name");
+                var description = "";
+                var key = Value(item, "key");
+                if (!string.IsNullOrEmpty(key) && core.ValueKind == JsonValueKind.Object && core.TryGetProperty(key, out var record) && record.ValueKind == JsonValueKind.Object)
+                {
+                    nameValue = Value(record, "name_override");
+                    if (string.IsNullOrWhiteSpace(nameValue))
+                        nameValue = Value(record, "name") ?? Value(record, "line");
+                    if (record.TryGetProperty("data", out var detail))
+                        description = Value(detail, "description") ?? Value(detail, "feat_text") ?? "";
+                }
+                if (string.IsNullOrWhiteSpace(nameValue) && !string.IsNullOrWhiteSpace(key))
+                    nameValue = key.Split(':').Last().Replace('-', ' ').Replace('_', ' ');
+                if (string.IsNullOrWhiteSpace(nameValue))
+                    continue;
+                var quantity = int.TryParse(Value(item, "q") ?? Value(item, "qty"), out var q) ? Math.Max(1, q) : 1;
+                items.Add(new(nameValue, description, quantity));
             }
-            if (string.IsNullOrWhiteSpace(nameValue) && !string.IsNullOrWhiteSpace(key))
-                nameValue = key.Split(':').Last().Replace('-', ' ').Replace('_', ' ');
-            if (string.IsNullOrWhiteSpace(nameValue)) continue;
-            var quantity = int.TryParse(Value(item, "q") ?? Value(item, "qty"), out var q) ? Math.Max(1, q) : 1;
-            items.Add(new(nameValue, description, quantity));
-        }
         int Gold(string key) => data.TryGetProperty(key, out var value) && int.TryParse(value.ToString(), out var amount) ? amount : 0;
         return new CharacterInventory(items, Gold("gold_coins"), Gold("gold_handfuls"), Gold("gold_bags"), Gold("gold_chests"));
     }
 
     internal static IReadOnlyList<CharacterFeature> ParseFeatures(string html)
     {
-        var document = new HtmlDocument(); document.LoadHtml(html);
+        var document = new HtmlDocument();
+        document.LoadHtml(html);
         var features = new List<CharacterFeature>();
         var panels = document.DocumentNode.SelectNodes("//*[contains(concat(' ', normalize-space(@class), ' '), ' dhc-feature-panel ') or @data-acc-title='Transformation']") ?? Enumerable.Empty<HtmlNode>();
         foreach (var panel in panels)
         {
             var category = WebUtility.HtmlDecode(panel.GetAttributeValue("data-acc-title", ""));
-            if (category is not ("Class" or "Subclass" or "Ancestry & Community" or "Transformation")) continue;
+            if (category is not ("Class" or "Subclass" or "Ancestry & Community" or "Transformation"))
+                continue;
             if (category == "Transformation")
             {
                 foreach (var node in panel.SelectNodes(".//button[@data-dhc-json]") ?? Enumerable.Empty<HtmlNode>())
@@ -190,9 +218,12 @@ public sealed class HeartOfDaggersClient(HttpClient http)
                         var root = json.RootElement;
                         AddFeature(features, category, root, "name", "description");
                         if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("feats", out var feats) && feats.ValueKind == JsonValueKind.Array)
-                            foreach (var feat in feats.EnumerateArray()) AddFeature(features, category, feat, "name", "text");
+                            foreach (var feat in feats.EnumerateArray())
+                                AddFeature(features, category, feat, "name", "text");
                     }
-                    catch (JsonException) { }
+                    catch (JsonException)
+                    {
+                    }
                 }
             }
             if (category == "Class")
@@ -203,12 +234,17 @@ public sealed class HeartOfDaggersClient(HttpClient http)
                     {
                         using var json = JsonDocument.Parse(WebUtility.HtmlDecode(node.GetAttributeValue("data-dhc-json", "")));
                         var root = json.RootElement;
-                        if (root.ValueKind != JsonValueKind.Object) continue;
+                        if (root.ValueKind != JsonValueKind.Object)
+                            continue;
                         if (root.TryGetProperty("class_feats", out var classFeatures) && classFeatures.ValueKind == JsonValueKind.Array)
-                            foreach (var feature in classFeatures.EnumerateArray()) AddFeature(features, "Class", feature, "name", "text");
+                            foreach (var feature in classFeatures.EnumerateArray())
+                                AddFeature(features, "Class", feature, "name", "text");
                         AddFeature(features, "Hope Feature", root, "hope_feat_name", "hope_feat_text");
                     }
-                    catch (JsonException) { /* Ignore malformed site feature data. */ }
+                    catch (JsonException)
+                    {
+                        /* Ignore malformed site feature data. */
+                    }
                 }
             }
             foreach (var node in panel.SelectNodes(".//li[@data-dhc-feature-actions][@data-dhc-json]") ?? Enumerable.Empty<HtmlNode>())
@@ -218,7 +254,10 @@ public sealed class HeartOfDaggersClient(HttpClient http)
                     using var json = JsonDocument.Parse(WebUtility.HtmlDecode(node.GetAttributeValue("data-dhc-json", "")));
                     AddFeature(features, category, json.RootElement, "name", "text");
                 }
-                catch (JsonException) { /* Ignore malformed site feature data. */ }
+                catch (JsonException)
+                {
+                    /* Ignore malformed site feature data. */
+                }
             }
         }
         return features;
@@ -227,12 +266,15 @@ public sealed class HeartOfDaggersClient(HttpClient http)
     private static void AddFeature(List<CharacterFeature> features, string category, JsonElement root, string nameKey, string textKey)
     {
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty(nameKey, out var name) || name.ValueKind != JsonValueKind.String ||
-            !root.TryGetProperty(textKey, out var text) || text.ValueKind != JsonValueKind.String) return;
-        var nameValue = name.GetString(); var textValue = text.GetString();
+            !root.TryGetProperty(textKey, out var text) || text.ValueKind != JsonValueKind.String)
+            return;
+        var nameValue = name.GetString();
+        var textValue = text.GetString();
         if (!string.IsNullOrWhiteSpace(nameValue) && !string.IsNullOrWhiteSpace(textValue))
         {
             var feature = new CharacterFeature(category, nameValue, textValue);
-            if (!features.Contains(feature)) features.Add(feature);
+            if (!features.Contains(feature))
+                features.Add(feature);
         }
     }
 

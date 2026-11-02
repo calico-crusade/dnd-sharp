@@ -15,7 +15,8 @@ public sealed class CharacterSheetTests
         int[] heights = [5, 3, 3, 2, 2, 2];
         var columns = SheetColumnLayout.Arrange(heights, 0);
         var totals = new int[3];
-        for (var i = 0; i < heights.Length; i++) totals[columns[i]] += heights[i];
+        for (var i = 0; i < heights.Length; i++)
+            totals[columns[i]] += heights[i];
         Assert.AreEqual(6, totals.Max());
     }
 
@@ -29,12 +30,17 @@ public sealed class CharacterSheetTests
             var statsHeight = random.Next(0, 40);
             var assignment = SheetColumnLayout.Arrange(heights, statsHeight);
             long[] actual = [statsHeight, 0, 0];
-            for (var i = 0; i < heights.Length; i++) actual[assignment[i]] += heights[i];
+            for (var i = 0; i < heights.Length; i++)
+                actual[assignment[i]] += heights[i];
 
             long minimum = long.MaxValue;
             void Search(int index, long[] totals)
             {
-                if (index == heights.Length) { minimum = Math.Min(minimum, totals.Max()); return; }
+                if (index == heights.Length)
+                {
+                    minimum = Math.Min(minimum, totals.Max());
+                    return;
+                }
                 for (var column = 0; column < 3; column++)
                 {
                     totals[column] += heights[index];
