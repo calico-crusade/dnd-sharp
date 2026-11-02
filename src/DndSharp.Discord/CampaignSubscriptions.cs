@@ -105,6 +105,13 @@ public sealed class CampaignSubscriptions(
         finally { gate.Release(); }
     }
 
+    public async Task<IReadOnlyList<CampaignSubscription>> ListCampaignSubscriptionsAsync(ulong guildId, long campaignId, CancellationToken token)
+    {
+        await gate.WaitAsync(token);
+        try { return subscriptions.Where(item => item.GuildId == guildId && item.CampaignId == campaignId).ToArray(); }
+        finally { gate.Release(); }
+    }
+
     public async Task<DualityDisplaySettings?> ConfigureDualityAsync(ulong guildId, string campaign,
         Func<DualityDisplaySettings, DualityDisplaySettings> update, CancellationToken token)
     {
@@ -191,7 +198,9 @@ public sealed class CampaignSubscriptions(
                 finally { gate.Release(); }
                 var claims = await store.ClaimsAsync(subscription.GuildId, subscription.CampaignId, token);
                 var owner = FindOwner(history.Entry, claims);
-                await messages.SendMessageAsync(Format(history.Entry, settings, owner), allowedMentions: AllowedMentions.None,
+                var prefix = DualityDisplay.Prefix(history.Entry, settings ?? new DualityDisplaySettings());
+                var emotes = prefix is not null && ServerEmojiResolver.HasTokens(prefix) ? ServerEmojiResolver.FromGuilds(discord.Guilds) : null;
+                await messages.SendMessageAsync(Format(history.Entry, settings, owner, emotes), allowedMentions: AllowedMentions.None,
                     flags: owner.HasValue ? MessageFlags.SuppressNotification : MessageFlags.None);
                 return;
             }
@@ -212,7 +221,10 @@ public sealed class CampaignSubscriptions(
         return claims.FirstOrDefault(claim => claim.CharacterId == id)?.UserId;
     }
 
-    public static string Format(JsonElement entry, DualityDisplaySettings? settings = null, ulong? owner = null)
+    public static string Format(JsonElement entry, DualityDisplaySettings? settings = null, ulong? owner = null) =>
+        Format(entry, settings, owner, null);
+
+    internal static string Format(JsonElement entry, DualityDisplaySettings? settings, ulong? owner, IReadOnlyCollection<ServerEmoji>? emotes)
     {
         static string? Read(JsonElement value, string key) => value.TryGetProperty(key, out var part) && part.ValueKind == JsonValueKind.String ? part.GetString() : null;
         static string Safe(string? value, string fallback)
@@ -225,6 +237,7 @@ public sealed class CampaignSubscriptions(
         var label = Safe(Read(entry, "label"), "Roll");
         var notation = Safe(Read(entry, "notation") ?? Read(entry, "baseNotation"), "");
         var prefix = DualityDisplay.Prefix(entry, settings ?? new DualityDisplaySettings()) ?? "🎲";
+        if (emotes is not null) prefix = ServerEmojiResolver.Resolve(prefix, emotes, strict: false);
         return string.IsNullOrEmpty(notation) ? $"{prefix} **{actor}** — {label}" : $"{prefix} **{actor}** — {label}\n{notation}";
     }
 

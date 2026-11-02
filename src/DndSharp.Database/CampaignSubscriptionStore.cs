@@ -6,8 +6,17 @@ using Microsoft.Extensions.Configuration;
 namespace DndSharp.Database;
 
 public sealed record CampaignSubscription(ulong GuildId, ulong ChannelId, long CampaignId, string CampaignSlug, DualityDisplaySettings? Duality = null);
-public sealed record DualityDisplaySettings(bool Enabled = true, string SuccessFear = "✅ 💀", string SuccessHope = "✅ ✨",
-    string FailureFear = "❌ 💀", string FailureHope = "❌ ✨", string Critical = "🎉🎉🎉", string Fear = "💀", string Hope = "✨", int? Difficulty = 12);
+public sealed record DualityDisplaySettings(
+    bool Enabled = true, 
+    string SuccessFear = "Success (Fear) <a:failure:1566781440811733062>", 
+    string SuccessHope = "Success (Hope) <:success:1566781407496380506>",
+    string FailureFear = "Failure (Fear) <a:failure:1566781440811733062>", 
+    string FailureHope = "Failure (Hope) <:success:1566781407496380506>", 
+    string Critical = "Critical! <a:critical1:1566781741799309332> <a:critical2:1566781723478589490>", 
+    string Fear = "<a:failure:1566781440811733062>", 
+    string Hope = "<:success:1566781407496380506>", 
+    int? Difficulty = null);
+
 public sealed record CharacterClaim(long CharacterId, ulong UserId);
 
 /// <summary>SQLite storage for subscriptions, campaign settings, and character claims.</summary>

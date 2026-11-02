@@ -9,6 +9,77 @@ namespace DndSharp.Tests;
 public sealed class CampaignSubscriptionTests
 {
     [TestMethod]
+    public void ResolvesStaticAndAnimatedServerEmojiWithoutChangingUnicodeOrMarkup()
+    {
+        ServerEmoji[] emotes =
+        [
+            new("HeadPat", 1535724617514360922, false),
+            new("dance", 123456789012345678, true),
+            new("external", 987654321098765432, false)
+        ];
+        var resolved = ServerEmojiResolver.Resolve("✅ :headpat: :DANCE: 🎉 <:external:987654321098765432>", emotes, strict: true);
+        Assert.AreEqual("✅ <:HeadPat:1535724617514360922> <a:dance:123456789012345678> 🎉 <:external:987654321098765432>", resolved);
+        Assert.AreEqual(resolved, ServerEmojiResolver.Resolve(resolved, emotes, strict: true));
+    }
+
+    [TestMethod]
+    public void ExplainsUnknownOrAmbiguousEmojiAndPreservesLegacyText()
+    {
+        ServerEmoji[] emotes = [new("same", 1, false), new("Same", 2, true), new("disabled", 3, false, false)];
+        var missing = Assert.Throws<EmojiResolutionException>(() => ServerEmojiResolver.Resolve(":missing:", emotes, strict: true));
+        StringAssert.Contains(missing.Message, "No accessible emoji");
+        Assert.Throws<EmojiResolutionException>(() => ServerEmojiResolver.Resolve(":disabled:", emotes, strict: true));
+        Assert.Throws<EmojiResolutionException>(() => ServerEmojiResolver.Resolve("<:disabled:3>", emotes, strict: true));
+        var ambiguous = Assert.Throws<EmojiResolutionException>(() => ServerEmojiResolver.Resolve(":same:", emotes, strict: true));
+        StringAssert.Contains(ambiguous.Message, "More than one");
+        Assert.AreEqual(":missing:", ServerEmojiResolver.Resolve(":missing:", emotes, strict: false));
+    }
+
+    [TestMethod]
+    public void RejectsInaccessibleMarkupAndDistinguishesExternalFromApplicationEmoji()
+    {
+        var inaccessible = Assert.Throws<EmojiResolutionException>(() =>
+            ServerEmojiResolver.Resolve("<:HeadPat:1535724617514360922>", [], strict: true));
+        StringAssert.Contains(inaccessible.Message, "emoji's server");
+
+        ServerEmoji[] emotes =
+        [
+            new("HeadPat", 1535724617514360922, false, GuildId: 456),
+            new("app_emoji", 876543210987654321, false, IsApplication: true),
+            new("local", 111111111111111111, false, GuildId: 123)
+        ];
+        var external = ServerEmojiResolver.Resolve("<:headpat:1535724617514360922>", emotes, strict: true);
+        Assert.AreEqual("<:HeadPat:1535724617514360922>", external);
+        Assert.IsTrue(ServerEmojiResolver.UsesExternalGuildEmoji(external, emotes, 123));
+        Assert.IsFalse(ServerEmojiResolver.UsesExternalGuildEmoji("<:app_emoji:876543210987654321>", emotes, 123));
+        Assert.IsFalse(ServerEmojiResolver.UsesExternalGuildEmoji("<:local:111111111111111111>", emotes, 123));
+    }
+
+    [TestMethod]
+    public void PreviouslySavedShortcodeResolvesWhenFormattingARoll()
+    {
+        using var roll = JsonDocument.Parse("""{"actorName":"Test","total":15,"duality":{"fear":3,"hope":9}}""");
+        var settings = new DualityDisplaySettings(SuccessHope: ":headpat:", Difficulty: 12);
+        var output = CampaignSubscriptions.Format(roll.RootElement, settings, null, [new ServerEmoji("HeadPat", 1535724617514360922, false)]);
+        StringAssert.StartsWith(output, "<:HeadPat:1535724617514360922>");
+    }
+
+    [TestMethod]
+    public void ResolvedMarkupRemainsUsableWhenStoredAndFormatted()
+    {
+        var text = ServerEmojiResolver.Resolve("✅ :headpat:", [new ServerEmoji("HeadPat", 1535724617514360922, false)], strict: true);
+        var settings = DualityDisplay.SetEmoji(new DualityDisplaySettings(Difficulty: 12), DualityOutcome.SuccessHope, text);
+        var saved = JsonSerializer.Serialize(settings);
+        var restored = JsonSerializer.Deserialize<DualityDisplaySettings>(saved);
+        using var roll = JsonDocument.Parse("""{"actorName":"Test","total":15,"duality":{"fear":3,"hope":9}}""");
+        StringAssert.StartsWith(CampaignSubscriptions.Format(roll.RootElement, restored), "✅ <:HeadPat:1535724617514360922>");
+        var multiple = ServerEmojiResolver.Resolve(string.Concat(Enumerable.Repeat(":headpat:", 4)),
+            [new ServerEmoji("HeadPat", 1535724617514360922, false)], strict: true);
+        Assert.IsTrue(multiple.Length > 100);
+        Assert.AreEqual(multiple, DualityDisplay.SetEmoji(settings, DualityOutcome.Critical, multiple).Critical);
+    }
+
+    [TestMethod]
     public void CampaignPickerStateExpiresAndCanOnlyBeConsumedOnce()
     {
         var state = new CampaignPickerState();

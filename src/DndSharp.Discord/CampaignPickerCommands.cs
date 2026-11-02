@@ -13,7 +13,8 @@ namespace DndSharp.Discord;
 public enum CampaignPickerAction { Unwatch, Emoji, Settings, Characters }
 
 public sealed record CampaignPickerRequest(ulong GuildId, ulong ChannelId, ulong UserId, CampaignPickerAction Action,
-    DateTimeOffset Expires, DualityOutcome Outcome = default, string? Display = null, bool? Enabled = null, int? Difficulty = null);
+    DateTimeOffset Expires, DualityOutcome Outcome = default, string? Display = null, bool? Enabled = null, int? Difficulty = null,
+    bool UsesExternalEmoji = false);
 
 /// <summary>Keeps short-lived command arguments off Discord component IDs.</summary>
 public sealed class CampaignPickerState
@@ -50,7 +51,7 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
     [DefaultMemberPermissions(GuildPermission.Administrator)]
     [RequireUserPermission(GuildPermission.Administrator)]
     public Task DualityEmoji([Summary(description: "Outcome to configure")] DualityOutcome outcome,
-        [Summary(description: "Emoji or text to display, up to 100 characters")] string display) =>
+        [Summary(description: "Emoji or text to display, up to 100 characters"), MaxLength(100)] string display) =>
         BeginAsync(CampaignPickerAction.Emoji, outcome, display);
 
     [SlashCommand("campaign-duality-settings", "Configure a campaign's duality display.")]
@@ -66,9 +67,24 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
     private Task BeginAsync(CampaignPickerAction action, DualityOutcome outcome = default, string? display = null,
         bool? enabled = null, int? difficulty = null) => RunAsync(async token =>
     {
-        if (action == CampaignPickerAction.Emoji) _ = DualityDisplay.SetEmoji(new DualityDisplaySettings(), outcome, display ?? "");
+        var usesExternal = false;
+        if (action == CampaignPickerAction.Emoji)
+        {
+            if (string.IsNullOrWhiteSpace(display) || display.Length > 100 || display.Any(char.IsControl))
+                throw new EmojiResolutionException("The display must be 1 to 100 characters without line breaks.");
+            var emotes = ServerEmojiResolver.FromGuilds(Context.Client.Guilds).ToList();
+            if (ServerEmojiResolver.HasTokens(display))
+            {
+                var appEmotes = await Context.Client.GetApplicationEmotesAsync(new RequestOptions { CancelToken = token });
+                emotes.AddRange(appEmotes.Select(emoji => new ServerEmoji(emoji.Name, emoji.Id, emoji.Animated, IsApplication: true)));
+            }
+            display = ServerEmojiResolver.Resolve(display, emotes, strict: true);
+            usesExternal = ServerEmojiResolver.UsesExternalGuildEmoji(display, emotes, Context.Guild.Id);
+            if (display.Length > 500) throw new EmojiResolutionException("The expanded emoji display is too long. Use fewer custom emoji.");
+            _ = DualityDisplay.SetEmoji(new DualityDisplaySettings(), outcome, display);
+        }
         var request = new CampaignPickerRequest(Context.Guild.Id, Context.Channel.Id, Context.User.Id, action,
-            DateTimeOffset.UtcNow.AddMinutes(10), outcome, display, enabled, difficulty);
+            DateTimeOffset.UtcNow.AddMinutes(10), outcome, display, enabled, difficulty, usesExternal);
         var campaigns = await AvailableAsync(request, token);
         if (campaigns.Count == 0) { await ClearAsync(EmptyMessage(request)); return; }
         if (campaigns.Count == 1) { await ExecuteAsync(request, campaigns[0], token); return; }
@@ -147,9 +163,20 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
                 await ClearAsync(removed ? "Stopped watching the campaign in this channel." : "This channel is not watching that campaign.");
                 break;
             case CampaignPickerAction.Emoji:
+                if (request.UsesExternalEmoji)
+                {
+                    var watched = await subscriptions.ListCampaignSubscriptionsAsync(request.GuildId, campaign.CampaignId, token);
+                    var inaccessible = watched.Any(item => Context.Client.GetChannel(item.ChannelId) is not SocketGuildChannel channel ||
+                        channel.Guild.CurrentUser is null || !channel.Guild.CurrentUser.GetPermissions(channel).UseExternalEmojis);
+                    if (inaccessible)
+                    {
+                        await ClearAsync("The bot needs Use External Emoji permission in every channel watching this campaign before it can use that emoji.");
+                        break;
+                    }
+                }
                 var emojis = await subscriptions.ConfigureDualityAsync(request.GuildId, campaign.CampaignSlug,
                     current => DualityDisplay.SetEmoji(current, request.Outcome, request.Display!), token);
-                await ClearAsync(emojis is null ? "This server is not watching that campaign." : $"Updated the duality display for `{request.Outcome}` across this server's channels watching this campaign.");
+                await ClearAsync(emojis is null ? "This server is not watching that campaign." : $"Updated the duality display for `{request.Outcome}` across this server's channels watching this campaign. Preview: {request.Display}");
                 break;
             case CampaignPickerAction.Settings:
                 var settings = await subscriptions.ConfigureDualityAsync(request.GuildId, campaign.CampaignSlug,
@@ -200,6 +227,10 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
         await DeferAsync(ephemeral: !component);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         try { await action(timeout.Token); }
+        catch (EmojiResolutionException ex)
+        {
+            await ClearAsync(ex.Message);
+        }
         catch (MailboxSetupException ex)
         {
             await ClearAsync(ex.Message);

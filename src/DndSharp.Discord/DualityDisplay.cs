@@ -45,8 +45,8 @@ public static class DualityDisplay
 
     public static DualityDisplaySettings SetEmoji(DualityDisplaySettings settings, DualityOutcome outcome, string emoji)
     {
-        if (string.IsNullOrWhiteSpace(emoji) || emoji.Length > 100 || emoji.Any(char.IsControl))
-            throw new ArgumentException("The display must be 1 to 100 characters without line breaks.", nameof(emoji));
+        if (string.IsNullOrWhiteSpace(emoji) || emoji.Length > 500 || emoji.Any(char.IsControl))
+            throw new ArgumentException("The display must be 1 to 500 characters without line breaks.", nameof(emoji));
         return outcome switch
         {
             DualityOutcome.SuccessFear => settings with { SuccessFear = emoji.Trim() },

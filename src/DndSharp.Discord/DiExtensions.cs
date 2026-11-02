@@ -14,7 +14,7 @@ public static class DiExtensions
         services.AddHeartOfDaggers();
         services.AddSingleton(new DiscordSocketConfig
         {
-            GatewayIntents = global::Discord.GatewayIntents.Guilds
+            GatewayIntents = global::Discord.GatewayIntents.Guilds | global::Discord.GatewayIntents.GuildEmojis
         });
         services.AddSingleton<DiscordSocketClient>();
         services.AddSingleton(provider => new InteractionService(

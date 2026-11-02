@@ -45,6 +45,8 @@ public sealed class DiscordBotTests
         using var fixture = new PokemonFixture();
         await using var provider = fixture.CreateServices();
         var interactions = provider.GetRequiredService<InteractionService>();
+        var socketConfig = provider.GetRequiredService<global::Discord.WebSocket.DiscordSocketConfig>();
+        Assert.IsTrue((socketConfig.GatewayIntents & global::Discord.GatewayIntents.GuildEmojis) != 0);
         await interactions.AddModulesAsync(typeof(BotCommands).Assembly, provider);
         CollectionAssert.AreEquivalent(new[] { "roll", "poke", "poke-dnd", "campaign-watch", "campaign-unwatch", "campaign-watches", "campaign-duality-emoji", "campaign-duality-settings", "campaign-characters", "character-claim", "character-unclaim", "character-sheet" },
             interactions.SlashCommands.Select(command => command.Name).ToArray());
