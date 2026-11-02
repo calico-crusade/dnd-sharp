@@ -5,6 +5,7 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using DndSharp.Database;
 using DndSharp.HeartOfDaggers;
+using DndSharp.HeartOfDaggers.Authentication;
 using Microsoft.Extensions.Logging;
 
 namespace DndSharp.Discord;
@@ -187,9 +188,13 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
         await DeferAsync(ephemeral: !component);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         try { await action(timeout.Token); }
+        catch (MailboxSetupException ex)
+        {
+            await ClearAsync(ex.Message);
+        }
         catch (Exception ex)
         {
-            logger.LogWarning("Character picker failed ({ErrorType}).", ex.GetType().Name);
+            logger.LogWarning("Character picker failed ({ErrorType}).", ex.GetType().FullName);
             await ClearAsync("Could not load or update the character selection. Please run the command again.");
         }
     }

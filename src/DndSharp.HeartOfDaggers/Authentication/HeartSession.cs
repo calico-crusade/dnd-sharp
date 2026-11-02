@@ -109,7 +109,12 @@ public sealed class HeartSession(
         logger.LogInformation("Signing in to Heart of Daggers using the bot mailbox.");
         foreach (Cookie cookie in transport.Cookies.GetCookies(HeartSessionTransport.Site))
             if (cookie.Name.StartsWith("wordpress_logged_in_", StringComparison.Ordinal)) cookie.Expired = true;
-        await signIn.SignInAsync(token);
+        try { await signIn.SignInAsync(token); }
+        catch (MailboxSetupException ex)
+        {
+            logger.LogWarning("Heart of Daggers mailbox setup failed ({Failure}): {Reason}", ex.Failure, ex.Message);
+            throw;
+        }
         if (!HasLoginCookie() || !await IsValidAsync(token))
             throw new UnauthorizedAccessException("Heart of Daggers did not establish an authenticated session.");
         await SaveAsync(token);

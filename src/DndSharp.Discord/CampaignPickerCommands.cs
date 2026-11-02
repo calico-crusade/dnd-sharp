@@ -5,6 +5,7 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using DndSharp.Database;
 using DndSharp.HeartOfDaggers;
+using DndSharp.HeartOfDaggers.Authentication;
 using Microsoft.Extensions.Logging;
 
 namespace DndSharp.Discord;
@@ -199,9 +200,13 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
         await DeferAsync(ephemeral: !component);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         try { await action(timeout.Token); }
+        catch (MailboxSetupException ex)
+        {
+            await ClearAsync(ex.Message);
+        }
         catch (Exception ex)
         {
-            logger.LogWarning("Campaign picker failed ({ErrorType}).", ex.GetType().Name);
+            logger.LogWarning("Campaign picker failed ({ErrorType}).", ex.GetType().FullName);
             await ClearAsync("Could not complete the campaign selection. Check the command options and permissions, then try again.");
         }
     }

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using MailKit;
 using MailKit.Net.Imap;
@@ -26,23 +27,36 @@ public sealed class ImapLoginCodeProvider(IConfiguration configuration, ILogger<
 {
     public async Task<ILoginCodeAttempt> PrepareAsync(CancellationToken cancellationToken)
     {
-        var host = Required("HeartOfDaggers:Imap:Host");
-        var username = Required("HeartOfDaggers:Imap:Username");
-        var password = Required("HeartOfDaggers:Imap:Password");
-        var loginEmail = Required("HeartOfDaggers:Email");
+        var host = Required("HeartOfDaggers:Imap:Host", MailboxSetupFailure.MissingHost);
+        var username = Required("HeartOfDaggers:Imap:Username", MailboxSetupFailure.MissingUsername);
+        var password = Required("HeartOfDaggers:Imap:Password", MailboxSetupFailure.MissingPassword);
+        var loginEmail = Required("HeartOfDaggers:Email", MailboxSetupFailure.MissingLoginEmail);
         var sender = configuration["HeartOfDaggers:Imap:Sender"] ?? "noreply@heartofdaggers.com,noreply@8510680.brevosend.com";
-        var port = int.TryParse(configuration["HeartOfDaggers:Imap:Port"], out var configuredPort) ? configuredPort : 993;
-        if (port is < 1 or > 65535 || string.IsNullOrWhiteSpace(sender))
-            throw new InvalidOperationException("Heart of Daggers IMAP settings are invalid.");
+        var configuredPort = configuration["HeartOfDaggers:Imap:Port"];
+        var port = 993;
+        if (!string.IsNullOrWhiteSpace(configuredPort) && (!int.TryParse(configuredPort, out port) || port is < 1 or > 65535))
+            throw new MailboxSetupException(MailboxSetupFailure.InvalidPort);
+        if (string.IsNullOrWhiteSpace(sender)) throw new MailboxSetupException(MailboxSetupFailure.InvalidSender);
 
         var client = new ImapClient();
         try
         {
-            await client.ConnectAsync(host, port, SecureSocketOptions.SslOnConnect, cancellationToken);
-            await client.AuthenticateAsync(username, password, cancellationToken);
+            await ConnectAndAuthenticateAsync(
+                token => client.ConnectAsync(host, port, SecureSocketOptions.SslOnConnect, token),
+                token => client.AuthenticateAsync(username, password, token), logger, port, cancellationToken);
             var inbox = client.Inbox;
-            await inbox.OpenAsync(FolderAccess.ReadOnly, cancellationToken);
-            var existing = await inbox.SearchAsync(SearchQuery.All, cancellationToken);
+            IList<UniqueId> existing;
+            try
+            {
+                await inbox.OpenAsync(FolderAccess.ReadOnly, cancellationToken);
+                existing = await inbox.SearchAsync(SearchQuery.All, cancellationToken);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex) when (ex is CommandException or ProtocolException or ServiceNotConnectedException or ServiceNotAuthenticatedException or IOException or SocketException or TimeoutException)
+            {
+                throw new MailboxSetupException(MailboxSetupFailure.InboxAccess);
+            }
+            logger.LogInformation("IMAP inbox opened successfully in read-only mode.");
             var lastId = existing.Count == 0 ? 0u : existing.Max(id => id.Id);
             return new Attempt(client, inbox, inbox.UidValidity, lastId, loginEmail, sender, logger);
         }
@@ -53,8 +67,38 @@ public sealed class ImapLoginCodeProvider(IConfiguration configuration, ILogger<
         }
     }
 
-    private string Required(string key) => !string.IsNullOrWhiteSpace(configuration[key])
-        ? configuration[key]! : throw new InvalidOperationException($"Configure {key} for automatic Heart of Daggers login.");
+    private string Required(string key, MailboxSetupFailure failure) => !string.IsNullOrWhiteSpace(configuration[key])
+        ? configuration[key]! : throw new MailboxSetupException(failure);
+
+    internal static async Task ConnectAndAuthenticateAsync(Func<CancellationToken, Task> connect,
+        Func<CancellationToken, Task> authenticate, ILogger logger, int port, CancellationToken token)
+    {
+        logger.LogInformation("Connecting to the IMAP server using TLS on port {Port}.", port);
+        try { await connect(token); }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) when (ex is SslHandshakeException or System.Security.Authentication.AuthenticationException)
+        {
+            throw new MailboxSetupException(MailboxSetupFailure.TlsHandshake);
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or ProtocolException or CommandException or TimeoutException)
+        {
+            throw new MailboxSetupException(MailboxSetupFailure.Connection);
+        }
+        logger.LogInformation("IMAP TLS connection established; authenticating the mailbox.");
+        try { await authenticate(token); }
+        catch (OperationCanceledException) { throw; }
+        catch (SaslException) { throw new MailboxSetupException(MailboxSetupFailure.SaslAuthentication); }
+        catch (MailKit.Security.AuthenticationException) { throw new MailboxSetupException(MailboxSetupFailure.CredentialsRejected); }
+        catch (Exception ex) when (ex is SslHandshakeException or System.Security.Authentication.AuthenticationException)
+        {
+            throw new MailboxSetupException(MailboxSetupFailure.TlsHandshake);
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or ProtocolException or CommandException or ServiceNotConnectedException or TimeoutException)
+        {
+            throw new MailboxSetupException(MailboxSetupFailure.Connection);
+        }
+        logger.LogInformation("IMAP mailbox authentication succeeded.");
+    }
 
     internal static bool IsExpectedMessage(MimeMessage message, string recipient, string expectedSender)
     {
@@ -126,7 +170,7 @@ public sealed class ImapLoginCodeProvider(IConfiguration configuration, ILogger<
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new TimeoutException("Timed out waiting for the Heart of Daggers login email.");
+                throw new MailboxSetupException(MailboxSetupFailure.LoginCodeTimeout);
             }
         }
 

@@ -3,11 +3,13 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace DndSharp.HeartOfDaggers.Authentication;
 
 /// <summary>Uses the site's email-code login forms without requiring an interactive browser.</summary>
-public sealed class PasswordlessSignIn(HttpClient http, IConfiguration configuration, ILoginCodeProvider codes)
+public sealed class PasswordlessSignIn(HttpClient http, IConfiguration configuration, ILoginCodeProvider codes,
+    ILogger<PasswordlessSignIn>? logger = null)
 {
     public async Task SignInAsync(CancellationToken cancellationToken)
     {
@@ -15,6 +17,7 @@ public sealed class PasswordlessSignIn(HttpClient http, IConfiguration configura
         if (string.IsNullOrWhiteSpace(email))
             throw new InvalidOperationException("Configure HeartOfDaggers:Email and IMAP settings for automatic login.");
 
+        logger?.LogInformation("Loading the Heart of Daggers sign-in form.");
         using var loginPage = await http.GetAsync("signin/", cancellationToken);
         loginPage.EnsureSuccessStatusCode();
         var html = await loginPage.Content.ReadAsStringAsync(cancellationToken);
@@ -34,6 +37,7 @@ public sealed class PasswordlessSignIn(HttpClient http, IConfiguration configura
             ["email"] = email.Trim(),
             ["redirect_to"] = ""
         });
+        logger?.LogInformation("Requesting a Heart of Daggers login email.");
         using var sent = await http.PostAsync("wp-admin/admin-ajax.php", sendForm, cancellationToken);
         sent.EnsureSuccessStatusCode();
         await using var sentStream = await sent.Content.ReadAsStreamAsync(cancellationToken);
@@ -63,6 +67,7 @@ public sealed class PasswordlessSignIn(HttpClient http, IConfiguration configura
             !fields.TryGetValue("challenge", out var formChallenge) || formChallenge != challenge || !fields.ContainsKey("_wpnonce"))
             throw new InvalidOperationException("The Heart of Daggers verification form is invalid.");
 
+        logger?.LogInformation("Waiting for the Heart of Daggers login email.");
         var code = await attempt.WaitForCodeAsync(cancellationToken);
         if (!Regex.IsMatch(code, @"^\d{6}$", RegexOptions.CultureInvariant))
             throw new InvalidOperationException("The mailbox returned an invalid login code.");
@@ -70,6 +75,7 @@ public sealed class PasswordlessSignIn(HttpClient http, IConfiguration configura
         fields["auth_method"] = "code";
         fields["redirect_to"] = "";
         using var verifyForm = new FormUrlEncodedContent(fields);
+        logger?.LogInformation("Submitting the Heart of Daggers login code.");
         using var verified = await http.PostAsync(actionUri, verifyForm, cancellationToken);
         // A successful form normally redirects; the session manager validates the resulting cookie separately.
         if ((int)verified.StatusCode >= 400)

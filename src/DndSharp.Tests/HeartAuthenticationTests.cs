@@ -2,6 +2,8 @@ using System.Net;
 using System.Text;
 using DndSharp.HeartOfDaggers.Authentication;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
+using DndSharp.HeartOfDaggers.Verbs;
 using MimeKit;
 
 namespace DndSharp.Tests;
@@ -9,6 +11,60 @@ namespace DndSharp.Tests;
 [TestClass]
 public sealed class HeartAuthenticationTests
 {
+    [TestMethod]
+    public async Task DistinguishesTlsFailuresFromRejectedImapCredentialsWithoutLeakingDetails()
+    {
+        const string sensitive = "mailbox-password-or-server-response";
+        var tls = await Assert.ThrowsAsync<MailboxSetupException>(() => ImapLoginCodeProvider.ConnectAndAuthenticateAsync(
+            _ => Task.FromException(new MailKit.Security.SslHandshakeException(sensitive)),
+            _ => Task.CompletedTask, NullLogger.Instance, 993, CancellationToken.None));
+        Assert.AreEqual(MailboxSetupFailure.TlsHandshake, tls.Failure);
+        Assert.IsFalse(tls.ToString().Contains(sensitive, StringComparison.Ordinal));
+
+        var credentials = await Assert.ThrowsAsync<MailboxSetupException>(() => ImapLoginCodeProvider.ConnectAndAuthenticateAsync(
+            _ => Task.CompletedTask,
+            _ => Task.FromException(new MailKit.Security.AuthenticationException(sensitive)),
+            NullLogger.Instance, 993, CancellationToken.None));
+        Assert.AreEqual(MailboxSetupFailure.CredentialsRejected, credentials.Failure);
+        Assert.IsFalse(credentials.ToString().Contains(sensitive, StringComparison.Ordinal));
+        Assert.IsNull(credentials.InnerException);
+
+        var sasl = await Assert.ThrowsAsync<MailboxSetupException>(() => ImapLoginCodeProvider.ConnectAndAuthenticateAsync(
+            _ => Task.CompletedTask,
+            _ => Task.FromException(new MailKit.Security.SaslException("PLAIN", MailKit.Security.SaslErrorCode.InvalidChallenge, sensitive)),
+            NullLogger.Instance, 993, CancellationToken.None));
+        Assert.AreEqual(MailboxSetupFailure.SaslAuthentication, sasl.Failure);
+        Assert.IsFalse(sasl.ToString().Contains(sensitive, StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task RejectsInvalidPortInsteadOfSilentlyUsingTheDefault()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["HeartOfDaggers:Email"] = "bot@example.test",
+            ["HeartOfDaggers:Imap:Host"] = "imap.example.test",
+            ["HeartOfDaggers:Imap:Username"] = "bot@example.test",
+            ["HeartOfDaggers:Imap:Password"] = "secret",
+            ["HeartOfDaggers:Imap:Port"] = "not-a-port"
+        }).Build();
+        var provider = new ImapLoginCodeProvider(config, NullLogger<ImapLoginCodeProvider>.Instance);
+        var error = await Assert.ThrowsAsync<MailboxSetupException>(() => provider.PrepareAsync(CancellationToken.None));
+        Assert.AreEqual(MailboxSetupFailure.InvalidPort, error.Failure);
+        Assert.IsFalse(error.ToString().Contains("secret", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task MailboxCheckDoesNotRequestOrReadALoginCode()
+    {
+        var provider = new FakeCodeProvider();
+        var verb = new HeartMailboxCheckVerb(NullLogger<HeartMailboxCheckVerb>.Instance, provider);
+        Assert.IsTrue(await verb.Execute(new HeartMailboxCheckOptions(), CancellationToken.None));
+        Assert.IsTrue(provider.Prepared);
+        Assert.IsTrue(provider.Disposed);
+        Assert.IsFalse(provider.CodeRequested);
+    }
+
     [TestMethod]
     public void AcceptsOnlyTheExpectedFreshCodeEmail()
     {
@@ -43,12 +99,13 @@ public sealed class HeartAuthenticationTests
     {
         public bool Prepared { get; private set; }
         public bool Disposed { get; private set; }
+        public bool CodeRequested { get; private set; }
         public Task<ILoginCodeAttempt> PrepareAsync(CancellationToken token)
         {
             Prepared = true;
             return Task.FromResult<ILoginCodeAttempt>(this);
         }
-        public Task<string> WaitForCodeAsync(CancellationToken token) => Task.FromResult("123456");
+        public Task<string> WaitForCodeAsync(CancellationToken token) { CodeRequested = true; return Task.FromResult("123456"); }
         public ValueTask DisposeAsync() { Disposed = true; return ValueTask.CompletedTask; }
     }
 

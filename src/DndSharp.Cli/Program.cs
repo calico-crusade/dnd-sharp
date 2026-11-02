@@ -20,4 +20,5 @@ return await new ServiceCollection()
         .Add<GenStatsVerb>()
 #endif
         .Add<DiscordVerb>()
-        .Add<HeartOfDaggersVerb>());
+        .Add<HeartOfDaggersVerb>()
+        .Add<HeartMailboxCheckVerb>());

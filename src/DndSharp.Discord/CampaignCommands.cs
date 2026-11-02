@@ -3,6 +3,7 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.Logging;
 using DndSharp.HeartOfDaggers;
+using DndSharp.HeartOfDaggers.Authentication;
 
 namespace DndSharp.Discord;
 
@@ -57,10 +58,14 @@ public sealed class CampaignCommands(CampaignSubscriptions subscriptions, HeartO
         {
             await ModifyOriginalResponseAsync(message => message.Content = "The request timed out. Please try again.");
         }
+        catch (MailboxSetupException ex)
+        {
+            await ModifyOriginalResponseAsync(message => message.Content = ex.Message);
+        }
         catch (Exception ex)
         {
             // The invite URL is a secret; do not log exception text or interaction arguments.
-            logger.LogWarning("Campaign command failed ({ErrorType}).", ex.GetType().Name);
+            logger.LogWarning("Campaign command failed ({ErrorType}).", ex.GetType().FullName);
             await ModifyOriginalResponseAsync(message => message.Content =
                 "Could not update the campaign subscription. Check the invitation and bot account configuration, then try again.");
         }

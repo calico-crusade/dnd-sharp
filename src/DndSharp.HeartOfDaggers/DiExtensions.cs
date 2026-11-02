@@ -14,7 +14,8 @@ public static class DiExtensions
         services.AddSingleton<ILoginCodeProvider, ImapLoginCodeProvider>();
         services.AddSingleton(provider => new PasswordlessSignIn(
             provider.GetRequiredService<HeartSessionTransport>().Http,
-            provider.GetRequiredService<IConfiguration>(), provider.GetRequiredService<ILoginCodeProvider>()));
+            provider.GetRequiredService<IConfiguration>(), provider.GetRequiredService<ILoginCodeProvider>(),
+            provider.GetRequiredService<Microsoft.Extensions.Logging.ILogger<PasswordlessSignIn>>()));
         services.AddSingleton<HeartSession>();
         services.AddTransient<SessionAuthenticationHandler>();
         services.AddHttpClient<HeartOfDaggersClient>((provider, client) =>
