@@ -170,6 +170,57 @@ public sealed class CampaignSubscriptionTests
     }
 
     [TestMethod]
+    public void LabelsTraitRollDiceAndPreservesModifiers()
+    {
+        using var history = JsonDocument.Parse("""
+            { "actorName":"Hero", "label":"Knowledge Roll", "notation":"8 with Fear [5, 2, +1 Base]",
+              "duality":{"fear":5,"hope":2}, "total":8 }
+            """);
+        var message = CampaignSubscriptions.Format(history.RootElement, new DualityDisplaySettings(Enabled: false));
+        StringAssert.Contains(message, "Knowledge Roll\n2d12+1 = 8 [Fear 5, Hope 2, +1 Base]");
+    }
+
+    [TestMethod]
+    public void TraitRollNotationCombinesModifiersAndKeepsTheirBreakdown()
+    {
+        using var roll = JsonDocument.Parse("""
+            { "label":"Knowledge Roll", "notation":"23 with Hope [8, 12, +1 Base, +2 Something]",
+              "duality":{"fear":8,"hope":12}, "total":23 }
+            """);
+        StringAssert.Contains(CampaignSubscriptions.Format(roll.RootElement),
+            "2d12+3 = 23 [Fear 8, Hope 12, +1 Base, +2 Something]");
+
+        using var negative = JsonDocument.Parse("""
+            { "notation":"6 with Fear [5, 2, -3 Base, +2 Experience]",
+              "duality":{"fear":5,"hope":2}, "total":6 }
+            """);
+        StringAssert.Contains(CampaignSubscriptions.Format(negative.RootElement),
+            "2d12-1 = 6 [Fear 5, Hope 2, -3 Base, +2 Experience]");
+
+        using var unknownBonus = JsonDocument.Parse("""
+            { "notation":"12 with Fear [5, 2, 5 bonus die]",
+              "duality":{"fear":5,"hope":2}, "total":12 }
+            """);
+        StringAssert.Contains(CampaignSubscriptions.Format(unknownBonus.RootElement),
+            "12 with Fear [Fear 5, Hope 2, 5 bonus die]");
+    }
+
+    [TestMethod]
+    public void LabelsOnlyMatchingUnlabeledDualityDice()
+    {
+        string Format(string notation, string duality)
+        {
+            using var json = JsonDocument.Parse($$"""{"notation":{{JsonSerializer.Serialize(notation)}},"duality":{{duality}}}""");
+            return CampaignSubscriptions.Format(json.RootElement, new DualityDisplaySettings(Enabled: false));
+        }
+        StringAssert.Contains(Format("8 with Fear [2, 5, +1 Base]", """{"fear":5,"hope":2}"""), "[Hope 2, Fear 5, +1 Base]");
+        StringAssert.Contains(Format("10 Critical [5, 5]", """{"fear":5,"hope":5}"""), "[Fear 5, Hope 5]");
+        StringAssert.Contains(Format("2d12 = 7 [Fear 5, Hope 2]", """{"fear":5,"hope":2}"""), "[Fear 5, Hope 2]");
+        StringAssert.Contains(Format("8 [3, 4, +1 Base]", """{"fear":5,"hope":2}"""), "[3, 4, +1 Base]");
+        StringAssert.Contains(Format("8 [5, 2, +1 Base]", """{"fear":"?","hope":2}"""), "[5, 2, +1 Base]");
+    }
+
+    [TestMethod]
     public async Task MigratesAndPersistsSubscriptionsSettingsAndClaims()
     {
         var prefix = Path.Combine(Path.GetTempPath(), $"dndsharp-subscriptions-{Guid.NewGuid():N}");

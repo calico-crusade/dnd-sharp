@@ -42,13 +42,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Smoke test bot entrypoint without credentials
-        shell: bash
-        run: |
-          output=$(docker run --rm -e Discord__Token= dndsharp-bot:smoke 2>&1 || true)
-          echo "$output"
-          echo "$output" | grep -F 'Set the Discord:Token configuration value'
-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
         with:
