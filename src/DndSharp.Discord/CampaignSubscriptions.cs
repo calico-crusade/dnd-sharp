@@ -324,7 +324,8 @@ public sealed class CampaignSubscriptions(
         }
         var actor = owner is > 0 ? $"<@{owner.Value}>" : Safe(Read(entry, "actorName") ?? Read(entry, "actorLabel"), "Someone");
         var label = Safe(Read(entry, "label"), "Roll");
-        var notation = DualityDisplay.FormatNotation(entry, Safe(Read(entry, "notation") ?? Read(entry, "baseNotation"), ""));
+        var notation = RollNotationFormatter.Format(entry, Safe(Read(entry, "notation") ?? Read(entry, "baseNotation"), ""),
+            Safe(Read(entry, "baseNotation"), ""), label);
         var prefix = DualityDisplay.Prefix(entry, settings ?? new DualityDisplaySettings()) ?? "🎲";
         if (emotes is not null)
             prefix = ServerEmojiResolver.Resolve(prefix, emotes, strict: false);

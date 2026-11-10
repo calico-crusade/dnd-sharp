@@ -177,7 +177,7 @@ public sealed class CampaignSubscriptionTests
               "duality":{"fear":5,"hope":2}, "total":8 }
             """);
         var message = CampaignSubscriptions.Format(history.RootElement, new DualityDisplaySettings(Enabled: false));
-        StringAssert.Contains(message, "Knowledge Roll\n2d12+1 = 8 [Fear 5, Hope 2, +1 Base]");
+        StringAssert.Contains(message, "Knowledge Roll\n2d12+1 = 8 With Fear [Fear 5, Hope 2, +1 Base]");
     }
 
     [TestMethod]
@@ -188,14 +188,14 @@ public sealed class CampaignSubscriptionTests
               "duality":{"fear":8,"hope":12}, "total":23 }
             """);
         StringAssert.Contains(CampaignSubscriptions.Format(roll.RootElement),
-            "2d12+3 = 23 [Fear 8, Hope 12, +1 Base, +2 Something]");
+            "2d12+3 = 23 With Hope [Fear 8, Hope 12, +1 Base, +2 Something]");
 
         using var negative = JsonDocument.Parse("""
             { "notation":"6 with Fear [5, 2, -3 Base, +2 Experience]",
               "duality":{"fear":5,"hope":2}, "total":6 }
             """);
         StringAssert.Contains(CampaignSubscriptions.Format(negative.RootElement),
-            "2d12-1 = 6 [Fear 5, Hope 2, -3 Base, +2 Experience]");
+            "2d12-1 = 6 With Fear [Fear 5, Hope 2, -3 Base, +2 Experience]");
 
         using var unknownBonus = JsonDocument.Parse("""
             { "notation":"12 with Fear [5, 2, 5 bonus die]",
@@ -203,6 +203,57 @@ public sealed class CampaignSubscriptionTests
             """);
         StringAssert.Contains(CampaignSubscriptions.Format(unknownBonus.RootElement),
             "12 with Fear [Fear 5, Hope 2, 5 bonus die]");
+    }
+
+    [TestMethod]
+    public void ManualDualityRollIncludesItsOutcomeWithoutDuplicatingIt()
+    {
+        using var manual = JsonDocument.Parse("""
+            { "actorName":"Hero", "label":"Duality Roll", "notation":"2d12 = 14 [Fear 11, Hope 3]",
+              "rollKind":"duality", "duality":{"fear":11,"hope":3}, "total":14 }
+            """);
+        StringAssert.Contains(CampaignSubscriptions.Format(manual.RootElement),
+            "Duality Roll\n2d12 = 14 With Fear [Fear 11, Hope 3]");
+
+        using var existing = JsonDocument.Parse("""
+            { "notation":"2d12 = 14 With Fear [Fear 11, Hope 3]", "duality":{"fear":11,"hope":3} }
+            """);
+        StringAssert.Contains(CampaignSubscriptions.Format(existing.RootElement),
+            "2d12 = 14 With Fear [Fear 11, Hope 3]");
+
+        using var critical = JsonDocument.Parse("""
+            { "notation":"10 Critical [5, 5]", "duality":{"fear":5,"hope":5}, "total":10 }
+            """);
+        StringAssert.Contains(CampaignSubscriptions.Format(critical.RootElement),
+            "2d12 = 10 Critical [Fear 5, Hope 5]");
+    }
+
+    [TestMethod]
+    public void CustomRollUsesItsBaseNotationOrDiceGroups()
+    {
+        const string groups = """
+            [{"sides":4,"qty":1},{"sides":6,"qty":1},{"sides":8,"qty":1},
+             {"sides":10,"qty":1},{"sides":12,"qty":1},{"sides":20,"qty":2}]
+            """;
+        using var fromGroups = JsonDocument.Parse($$"""
+            { "label":"Custom Roll", "rollKind":"quick", "notation":"46 [4, 1, 8, 4, 12, 8, 9]",
+              "groups":{{groups}}, "total":46 }
+            """);
+        StringAssert.Contains(CampaignSubscriptions.Format(fromGroups.RootElement),
+            "D4+D6+D8+D10+D12+2D20 = 46 [4, 1, 8, 4, 12, 8, 9]");
+
+        using var withBase = JsonDocument.Parse("""
+            { "label":"Custom Roll", "notation":"10 [4, 3]", "baseNotation":"D4+D6+3", "total":10 }
+            """);
+        StringAssert.Contains(CampaignSubscriptions.Format(withBase.RootElement), "D4+D6+3 = 10 [4, 3]");
+
+        using var alreadyFormatted = JsonDocument.Parse("""
+            { "label":"Custom Roll", "notation":"1d4 = 2 [2]", "baseNotation":"1d4", "total":2 }
+            """);
+        StringAssert.Contains(CampaignSubscriptions.Format(alreadyFormatted.RootElement), "1d4 = 2 [2]");
+
+        using var missing = JsonDocument.Parse("""{"label":"Custom Roll", "notation":"6 [2, 4]"}""");
+        StringAssert.Contains(CampaignSubscriptions.Format(missing.RootElement), "6 [2, 4]");
     }
 
     [TestMethod]

@@ -21,7 +21,7 @@ public static class DualityDisplay
         @"\[(?<leading>\s*)(?<first>\d+)(?<separator>\s*,\s*)(?<second>\d+)(?=\s*[,\]])",
         RegexOptions.CultureInvariant | RegexOptions.Compiled, TimeSpan.FromSeconds(1));
     private static readonly Regex TraitNotation = new(
-        @"^(?<total>-?\d+)\s+(?:with\s+(?:Fear|Hope)|critical(?:\s+success)?)\s+(?<breakdown>\[.*\])$",
+        @"^(?<total>-?\d+)\s+(?<outcome>with\s+(?:Fear|Hope)|critical(?:\s+success)?)\s+(?<breakdown>\[.*\])$",
         RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromSeconds(1));
     private static readonly Regex LabeledDie = new(
         @"^\s*(?<label>Fear|Hope)\s+(?<value>\d+)\s*$",
@@ -33,6 +33,11 @@ public static class DualityDisplay
     internal static string FormatNotation(JsonElement entry, string notation)
     {
         notation = LabelDice(entry, notation);
+        return AddOutcome(entry, FormatTraitNotation(entry, notation));
+    }
+
+    private static string FormatTraitNotation(JsonElement entry, string notation)
+    {
         var match = TraitNotation.Match(notation);
         if (!match.Success || entry.ValueKind != JsonValueKind.Object || !long.TryParse(match.Groups["total"].Value, out var total) ||
             !entry.TryGetProperty("duality", out var duality) || duality.ValueKind != JsonValueKind.Object ||
@@ -75,7 +80,39 @@ public static class DualityDisplay
             return notation;
         }
         var suffix = modifiers > 0 ? $"+{modifiers}" : modifiers < 0 ? modifiers.ToString() : "";
-        return $"2d12{suffix} = {total} {breakdown}";
+        var outcome = match.Groups["outcome"].Value;
+        outcome = outcome.StartsWith("with", StringComparison.OrdinalIgnoreCase)
+            ? $"With {(fear > hope ? "Fear" : "Hope")}"
+            : outcome;
+        return $"2d12{suffix} = {total} {outcome} {breakdown}";
+    }
+
+    private static string AddOutcome(JsonElement entry, string notation)
+    {
+        if (entry.ValueKind != JsonValueKind.Object || !entry.TryGetProperty("duality", out var duality) ||
+            duality.ValueKind != JsonValueKind.Object || !duality.TryGetProperty("fear", out var fearValue) ||
+            fearValue.ValueKind != JsonValueKind.Number || !fearValue.TryGetInt32(out var fear) || fear is < 1 or > 12 ||
+            !duality.TryGetProperty("hope", out var hopeValue) || hopeValue.ValueKind != JsonValueKind.Number ||
+            !hopeValue.TryGetInt32(out var hope) || hope is < 1 or > 12 || fear == hope)
+            return notation;
+
+        // Only modify completed expressions with a breakdown that identifies both dice.
+        var match = Regex.Match(notation, @"^(?<expression>.+?=\s*-?\d+)\s+(?<breakdown>\[.*\])$",
+            RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        if (!match.Success)
+            return notation;
+        var breakdown = match.Groups["breakdown"].Value;
+        var parts = breakdown[1..^1].Split(',');
+        if (parts.Length < 2)
+            return notation;
+        var first = LabeledDie.Match(parts[0]);
+        var second = LabeledDie.Match(parts[1]);
+        if (!first.Success || !second.Success || first.Groups["label"].Value.Equals(second.Groups["label"].Value, StringComparison.OrdinalIgnoreCase) ||
+            !int.TryParse(first.Groups["value"].Value, out var firstValue) || !int.TryParse(second.Groups["value"].Value, out var secondValue) ||
+            firstValue != (first.Groups["label"].Value.Equals("Fear", StringComparison.OrdinalIgnoreCase) ? fear : hope) ||
+            secondValue != (second.Groups["label"].Value.Equals("Fear", StringComparison.OrdinalIgnoreCase) ? fear : hope))
+            return notation;
+        return $"{match.Groups["expression"].Value} With {(fear > hope ? "Fear" : "Hope")} {breakdown}";
     }
 
     internal static string LabelDice(JsonElement entry, string notation)
