@@ -73,8 +73,34 @@ public sealed class HeartOfDaggersClient(HttpClient http)
     }
 
     /// <summary>Read character details using the IDs visible to this campaign member.</summary>
-    public Task<IReadOnlyList<CharacterSnapshot>> GetCampaignCharacterDetailsAsync(CampaignSession campaign, CancellationToken token = default) =>
-        GetCharacterDetailsAsync(campaign.CharacterIds, token);
+    public async Task<IReadOnlyList<CharacterSnapshot>> GetCampaignCharacterDetailsAsync(CampaignSession campaign, CancellationToken token = default)
+    {
+        var characters = new List<CharacterSnapshot>();
+        foreach (var id in campaign.CharacterIds)
+            characters.Add(await GetCharacterDetailsAsync(campaign, id, token));
+        return characters;
+    }
+
+    public async Task<CharacterSnapshot> GetCharacterDetailsAsync(CampaignSession campaign, long characterId, CancellationToken token = default)
+    {
+        PositiveId(characterId);
+        if (!campaign.CharacterIds.Contains(characterId))
+            throw new ArgumentException("The character is not in this campaign.", nameof(characterId));
+        var path = campaign.CharacterPath(characterId)
+            ?? throw new InvalidOperationException("Heart of Daggers did not provide a character sheet link for this campaign member.");
+        using var response = await http.GetAsync(path.TrimStart('/'), token);
+        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.Redirect)
+            throw new UnauthorizedAccessException("Heart of Daggers denied access to this character sheet.");
+        response.EnsureSuccessStatusCode();
+        var html = await response.Content.ReadAsStringAsync(token);
+        var state = EmbeddedState.Extract(html, "DH_CHARACTER_STATE")
+            ?? throw new InvalidOperationException("Heart of Daggers did not provide character sheet data.");
+        if (!state.TryGetProperty("postId", out var id) || !id.TryGetInt64(out var actualId) || actualId != characterId)
+            throw new InvalidOperationException("The character sheet did not match the campaign character.");
+        var character = CharacterSheetParser.Parse(html, state, campaign.CharacterName(characterId));
+        var inventory = await GetInventoryAsync(html, characterId, token);
+        return new CharacterSnapshot(character, EmbeddedState.RemoveCredentials(state), ParseFeatures(html), inventory);
+    }
 
     public async Task<CharacterSnapshot> GetCharacterDetailsAsync(long characterId, CancellationToken token = default) =>
         (await GetCharacterDetailsAsync([PositiveId(characterId)], token))[0];

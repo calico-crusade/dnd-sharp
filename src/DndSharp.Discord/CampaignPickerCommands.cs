@@ -238,15 +238,9 @@ public sealed class CampaignPickerCommands(CampaignSubscriptions subscriptions, 
             throw new InvalidOperationException("Campaign identity changed.");
         var claims = await store.ClaimsAsync(request.GuildId, session.Id, token);
         var selected = session.CharacterIds.Take(40).ToArray();
-        var names = await Task.WhenAll(selected.Select(async id =>
-        {
-            var response = await api.GetCharacterAsync(id, token);
-            return response.TryGetProperty("character", out var character) && character.ValueKind == JsonValueKind.Object &&
-                character.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String ? name.GetString() : null;
-        }));
         var lines = selected.Select((id, i) =>
         {
-            var name = global::Discord.Format.Sanitize(CharacterPickerCommands.Label(names[i], "Unknown"));
+            var name = global::Discord.Format.Sanitize(CharacterPickerCommands.Label(session.CharacterName(id), "Unknown"));
             if (name.Length > 70)
                 name = name[..70];
             var owner = claims.FirstOrDefault(claim => claim.CharacterId == id);

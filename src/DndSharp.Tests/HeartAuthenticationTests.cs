@@ -12,6 +12,22 @@ namespace DndSharp.Tests;
 public sealed class HeartAuthenticationTests
 {
     [TestMethod]
+    public async Task ValidatesSessionUsingCurrentCharacterEndpoint()
+    {
+        var handler = new SessionCheckHandler(HttpStatusCode.OK, """{"items":[],"page":1}""");
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://heartofdaggers.com/") };
+        Assert.IsTrue(await HeartSession.IsValidAsync(http, CancellationToken.None));
+        Assert.AreEqual("/wp-json/dh/v1/characters", handler.Path);
+
+        using var expired = new HttpClient(new SessionCheckHandler(HttpStatusCode.Unauthorized, "")) { BaseAddress = http.BaseAddress };
+        Assert.IsFalse(await HeartSession.IsValidAsync(expired, CancellationToken.None));
+        using var missing = new HttpClient(new SessionCheckHandler(HttpStatusCode.NotFound, "")) { BaseAddress = http.BaseAddress };
+        await Assert.ThrowsAsync<HttpRequestException>(() => HeartSession.IsValidAsync(missing, CancellationToken.None));
+        using var invalid = new HttpClient(new SessionCheckHandler(HttpStatusCode.OK, """{"unexpected":true}""")) { BaseAddress = http.BaseAddress };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => HeartSession.IsValidAsync(invalid, CancellationToken.None));
+    }
+
+    [TestMethod]
     public async Task DistinguishesTlsFailuresFromRejectedImapCredentialsWithoutLeakingDetails()
     {
         const string sensitive = "mailbox-password-or-server-response";
@@ -114,6 +130,17 @@ public sealed class HeartAuthenticationTests
         {
             Disposed = true;
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class SessionCheckHandler(HttpStatusCode status, string body) : HttpMessageHandler
+    {
+        public string? Path { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Path = request.RequestUri!.AbsolutePath;
+            return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body) });
         }
     }
 

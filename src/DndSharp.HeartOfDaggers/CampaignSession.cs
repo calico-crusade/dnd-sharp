@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using HtmlAgilityPack;
@@ -7,6 +8,7 @@ namespace DndSharp.HeartOfDaggers;
 /// <summary>The campaign information needed to join its live history feed.</summary>
 public sealed class CampaignSession
 {
+    private readonly Dictionary<long, (string Name, string Path)> characterProfiles = [];
     private CampaignSession(string slug, JsonElement state, string? name = null)
     {
         Slug = slug;
@@ -35,6 +37,9 @@ public sealed class CampaignSession
     public IReadOnlyList<long> CharacterIds { get; }
     public IReadOnlyList<long> OwnedCharacterIds { get; }
     public Uri SocketUri { get; }
+
+    public string? CharacterName(long id) => characterProfiles.TryGetValue(id, out var profile) ? profile.Name : null;
+    internal string? CharacterPath(long id) => characterProfiles.TryGetValue(id, out var profile) ? profile.Path : null;
 
     // Credentials are intentionally internal and must never be serialized or logged.
     internal string SocketAuth { get; }
@@ -67,7 +72,35 @@ public sealed class CampaignSession
         var document = new HtmlDocument();
         document.LoadHtml(html);
         var name = HtmlEntity.DeEntitize(document.DocumentNode.SelectSingleNode("//h1")?.InnerText ?? "").Trim();
-        return new CampaignSession(slug, state.Value, name);
+        var session = new CampaignSession(slug, state.Value, name);
+        session.ReadCharacterProfiles(document);
+        return session;
+    }
+
+    private void ReadCharacterProfiles(HtmlDocument document)
+    {
+        var buttons = document.DocumentNode.SelectNodes("//*[@data-dh-character-details-source]") ?? Enumerable.Empty<HtmlNode>();
+        foreach (var button in buttons)
+        {
+            var source = button.GetAttributeValue("data-dh-character-details-source", "");
+            var match = Regex.Match(source, @"^dh-campaign-character-details-(\d+)-\d+$", RegexOptions.CultureInvariant);
+            if (!match.Success || !long.TryParse(match.Groups[1].Value, out var id) || !CharacterIds.Contains(id))
+                continue;
+            var shell = button.Ancestors("div").FirstOrDefault(node => node.GetClasses().Contains("dh-campaign-character-shell"));
+            var link = shell?.SelectSingleNode(".//a[contains(concat(' ', normalize-space(@class), ' '), ' dh-campaign-character-profile__name ')]");
+            var href = WebUtility.HtmlDecode(link?.GetAttributeValue("href", ""));
+            if (!Uri.TryCreate(href, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps ||
+                !uri.Host.Equals("heartofdaggers.com", StringComparison.OrdinalIgnoreCase) || uri.Port != 443 ||
+                uri.UserInfo.Length != 0 || uri.Query.Length != 0 || uri.Fragment.Length != 0)
+                continue;
+            var parts = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2 || parts[0] != "character" || !parts[1].All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_'))
+                continue;
+            var name = WebUtility.HtmlDecode(button.GetAttributeValue("data-character-name", "")).Trim();
+            if (name.Length == 0)
+                name = WebUtility.HtmlDecode(link!.InnerText).Trim();
+            characterProfiles[id] = (name, uri.AbsolutePath);
+        }
     }
 
     private static string RequiredString(JsonElement state, string name) =>

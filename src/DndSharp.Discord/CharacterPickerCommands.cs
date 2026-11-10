@@ -108,7 +108,7 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
             await ClearAsync("That character is no longer in this campaign. Run the command again.");
             return;
         }
-        var snapshot = await api.GetCharacterDetailsAsync(characterId, token);
+        var snapshot = await api.GetCharacterDetailsAsync(session, characterId, token);
         await using var image = await renderer.RenderAsync(snapshot, values[0], token);
         await FollowupWithFileAsync(image, "character-sheet.png", text: "Character sheet", ephemeral: false, allowedMentions: AllowedMentions.None);
         await ClearAsync("Character sheet posted in this channel.");
@@ -166,26 +166,12 @@ public sealed class CharacterPickerCommands(CampaignSubscriptions subscriptions,
         }
         var index = PageIndex(page, ids.Length);
         var selected = ids.Skip(index * PageSize).Take(PageSize).ToArray();
-        var names = await Task.WhenAll(selected.Select(async id =>
-        {
-            try
-            {
-                var response = await api.GetCharacterAsync(id, token);
-                return response.TryGetProperty("character", out var character) && character.ValueKind == JsonValueKind.Object &&
-                    character.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String
-                    ? name.GetString() : null;
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                return null;
-            }
-        }));
         var menu = new SelectMenuBuilder().WithCustomId($"character-choice:{action}:{Context.User.Id}:{campaignId}").WithPlaceholder(action == "sheet" ? "Choose a character" : "Choose your character");
         for (var i = 0; i < selected.Length; i++)
         {
             var claim = claims.FirstOrDefault(item => item.CharacterId == selected[i]);
             var status = claim is null ? "Available" : claim.UserId == Context.User.Id ? "Already linked to you" : "Already claimed";
-            menu.AddOption(Label(names[i], $"Character {selected[i]}"), selected[i].ToString(), description: status);
+            menu.AddOption(Label(session.CharacterName(selected[i]), $"Character {selected[i]}"), selected[i].ToString(), description: status);
         }
         var builder = new ComponentBuilder().WithSelectMenu(menu);
         AddPageButtons(builder, index, ids.Length, $"character-choice-page:{action}:{Context.User.Id}:{campaignId}");

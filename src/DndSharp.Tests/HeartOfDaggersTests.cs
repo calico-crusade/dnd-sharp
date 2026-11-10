@@ -74,6 +74,32 @@ public sealed class HeartOfDaggersTests
     }
 
     [TestMethod]
+    public async Task ReadsCampaignCharacterFromItsCurrentSheet()
+    {
+        const string profile = """
+            <div class="dh-campaign-character-shell">
+              <a class="dh-campaign-character-profile__name" href="https://heartofdaggers.com/character/hero/">Hero</a>
+              <button data-dh-character-details-source="dh-campaign-character-details-12-42" data-character-name="Hero &amp; Friend"></button>
+            </div>
+            """;
+        var campaign = CampaignSession.Parse("test123", CampaignHtml + profile);
+        Assert.AreEqual("Hero & Friend", campaign.CharacterName(12));
+        using var http = new HttpClient(new SheetHandler()) { BaseAddress = new Uri("https://heartofdaggers.com/") };
+        var character = await new HeartOfDaggersClient(http).GetCharacterDetailsAsync(campaign, 12);
+        Assert.AreEqual("Hero & Friend", character.Character.GetProperty("name").GetString());
+        Assert.AreEqual(2, character.Character.GetProperty("traits")[0].GetProperty("value").GetInt32());
+        Assert.AreEqual("3", character.Character.GetProperty("trackers").GetProperty("hp").GetProperty("value").GetString());
+        Assert.AreEqual("Sword", character.Character.GetProperty("equipment").GetProperty("weapons")[0].GetProperty("name").GetString());
+        Assert.AreEqual("Torch", character.Inventory!.Items[0].Name);
+        Assert.AreEqual("Vampire", character.SheetState!.Value.GetProperty("transformationName").GetString());
+        Assert.IsFalse(JsonSerializer.Serialize(character).Contains("testsecret", StringComparison.Ordinal));
+
+        var malicious = CampaignSession.Parse("test123", CampaignHtml + profile.Replace("https://heartofdaggers.com/character/hero/", "https://attacker.example/character/hero/"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => new HeartOfDaggersClient(http).GetCharacterDetailsAsync(malicious, 12));
+        await Assert.ThrowsAsync<ArgumentException>(() => new HeartOfDaggersClient(http).GetCharacterDetailsAsync(campaign, 999));
+    }
+
+    [TestMethod]
     public void ExtractsOnlyPublicSheetFeatureText()
     {
         const string html = """
@@ -238,6 +264,26 @@ public sealed class HeartOfDaggersTests
             {
                 Content = new StringContent(body, Encoding.UTF8)
             };
+        }
+    }
+
+    private sealed class SheetHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            var body = request.RequestUri!.AbsolutePath switch
+            {
+                "/character/hero/" => """
+                    <script>window.DH_CHARACTER_STATE = {"postId":12,"postTitle":"Hero","level":1,"agilityMod":2,"transformationName":"Vampire","nonce":"testsecret"};
+                    window.DHC_INV = {nonce:'testsecret',postId:12};</script>
+                    <div data-dhc-label="Evasion" data-dhc-base="12"></div>
+                    <div data-field="hp" data-value="3" data-max="6"></div>
+                    <div data-dhc-json="{&quot;kind&quot;:&quot;weapon&quot;,&quot;name&quot;:&quot;Sword&quot;}"></div>
+                    """,
+                "/wp-admin/admin-ajax.php" => """{"success":true,"data":{"fixed2":[{"t":"custom","text":"Torch","q":1}]}}""",
+                _ => throw new InvalidOperationException("Unexpected request.")
+            };
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body, Encoding.UTF8) });
         }
     }
 }
