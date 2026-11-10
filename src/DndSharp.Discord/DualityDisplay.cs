@@ -155,6 +155,8 @@ public static class DualityDisplay
             return null;
         if (fear == hope)
             return settings.Critical;
+        if (ReactionRollFormatter.IsReaction(entry))
+            return null;
 
         var withFear = fear > hope;
         var total = Number(entry, "total");

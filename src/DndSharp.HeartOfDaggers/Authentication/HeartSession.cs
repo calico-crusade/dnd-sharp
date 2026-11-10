@@ -110,20 +110,45 @@ public sealed class HeartSession(
     private bool HasLoginCookie() => transport.Cookies.GetCookies(HeartSessionTransport.Site).Cast<Cookie>()
         .Any(cookie => cookie.Name.StartsWith("wordpress_logged_in_", StringComparison.Ordinal) && !cookie.Expired);
 
-    private Task<bool> IsValidAsync(CancellationToken token) => IsValidAsync(transport.Http, token);
+    private async Task<bool> IsValidAsync(CancellationToken token)
+    {
+        logger.LogInformation("Checking the saved Heart of Daggers session.");
+        try
+        {
+            return await IsValidAsync(transport.Http, token);
+        }
+        catch (TimeoutException)
+        {
+            logger.LogWarning("The Heart of Daggers session check timed out. Check the site's availability and outbound HTTPS connectivity from the bot host.");
+            throw;
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning("The Heart of Daggers session check failed (HTTP error: {HttpError}, status: {StatusCode}).",
+                ex.HttpRequestError, ex.StatusCode);
+            throw;
+        }
+    }
 
     internal static async Task<bool> IsValidAsync(HttpClient http, CancellationToken token)
     {
-        using var response = await http.GetAsync("wp-json/dh/v1/characters?per_page=1", token);
-        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.Redirect)
-            return false;
-        response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(token);
-        using var json = await JsonDocument.ParseAsync(stream, cancellationToken: token);
-        if (json.RootElement.ValueKind != JsonValueKind.Object ||
-            !json.RootElement.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
-            throw new InvalidOperationException("Heart of Daggers returned an unexpected response while checking the session.");
-        return true;
+        try
+        {
+            using var response = await http.GetAsync("wp-json/dh/v1/characters?per_page=1", token);
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden or HttpStatusCode.Redirect)
+                return false;
+            response.EnsureSuccessStatusCode();
+            await using var stream = await response.Content.ReadAsStreamAsync(token);
+            using var json = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+            if (json.RootElement.ValueKind != JsonValueKind.Object ||
+                !json.RootElement.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array)
+                throw new InvalidOperationException("Heart of Daggers returned an unexpected response while checking the session.");
+            return true;
+        }
+        catch (OperationCanceledException ex) when (!token.IsCancellationRequested)
+        {
+            throw new TimeoutException("Timed out while checking the Heart of Daggers session.", ex);
+        }
     }
 
     private async Task SignInAndSaveAsync(CancellationToken token)

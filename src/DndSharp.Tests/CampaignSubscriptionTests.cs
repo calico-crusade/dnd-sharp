@@ -229,6 +229,54 @@ public sealed class CampaignSubscriptionTests
     }
 
     [TestMethod]
+    public void ReactionRollIncludesAdvantageDieAndSeparateModifiers()
+    {
+        using var reaction = JsonDocument.Parse("""
+            { "actorName":"Hero", "label":"Duality Reaction Roll", "notation":"24 [2, 7, +1, +5 Experiences, +9 Manual]",
+              "baseNotation":"2d12", "total":24, "rollKind":"reaction", "reactionRoll":true,
+              "rolls":[2,7,1], "groups":[{"sides":12,"qty":1},{"sides":12,"qty":1},{"sides":6,"qty":1}],
+              "advMode":"adv", "advDie":1, "bonusBreakdown":{"base":0,"experiences":5,"manual":9} }
+            """);
+        var output = CampaignSubscriptions.Format(reaction.RootElement);
+        StringAssert.StartsWith(output, "🎲 **Hero** — Duality Reaction Roll");
+        StringAssert.Contains(output, "2d12+1d6+14 = 24 [Fear 2, Hope 7, +1 Advantage, +5 Experiences, +9 Manual]");
+        Assert.IsFalse(output.Contains("With Hope", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void ReactionRollHandlesDisadvantageAndDoesNotClaimHopeOrFearOutcome()
+    {
+        using var reaction = JsonDocument.Parse("""
+            { "label":"Duality Reaction Roll", "notation":"10 [8, 4, -3, +1 Base]", "total":10,
+              "reactionRoll":true, "duality":{"fear":8,"hope":4}, "rolls":[8,4,3],
+              "groups":[{"sides":12,"qty":2},{"sides":6,"qty":1}], "advMode":"dis", "advDie":3 }
+            """);
+        var output = CampaignSubscriptions.Format(reaction.RootElement, new DualityDisplaySettings(Difficulty: 8));
+        StringAssert.StartsWith(output, "🎲");
+        StringAssert.Contains(output, "2d12-1d6+1 = 10 [Fear 8, Hope 4, -3 Disadvantage, +1 Base]");
+
+        using var normal = JsonDocument.Parse("""
+            { "label":"Reaction Roll", "notation":"10 [5, 5]", "total":10, "rollKind":"reaction",
+              "duality":{"fear":5,"hope":5}, "rolls":[5,5], "groups":[{"sides":12,"qty":2}], "advMode":"normal" }
+            """);
+        var critical = CampaignSubscriptions.Format(normal.RootElement, new DualityDisplaySettings(Critical: "🎉"));
+        StringAssert.StartsWith(critical, "🎉");
+        StringAssert.Contains(critical, "2d12 = 10 [Fear 5, Hope 5]");
+    }
+
+    [TestMethod]
+    public void ReactionRollKeepsOriginalNotationIfDiceDetailsDoNotMatch()
+    {
+        using var reaction = JsonDocument.Parse("""
+            { "label":"Reaction Roll", "notation":"24 [2, 7, +1, +5 Experiences, +9 Manual]", "total":24,
+              "rollKind":"reaction", "rolls":[7,2,1], "groups":[{"sides":12,"qty":2},{"sides":6,"qty":1}],
+              "advMode":"adv", "advDie":1 }
+            """);
+        StringAssert.Contains(CampaignSubscriptions.Format(reaction.RootElement),
+            "24 [2, 7, +1, +5 Experiences, +9 Manual]");
+    }
+
+    [TestMethod]
     public void CustomRollUsesItsBaseNotationOrDiceGroups()
     {
         const string groups = """

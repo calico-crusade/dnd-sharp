@@ -28,6 +28,31 @@ public sealed class HeartAuthenticationTests
     }
 
     [TestMethod]
+    public async Task SessionCheckDistinguishesTimeoutFromCancellation()
+    {
+        using var http = new HttpClient(new DelayedSessionCheckHandler())
+        {
+            BaseAddress = new Uri("https://heartofdaggers.com/"),
+            Timeout = TimeSpan.FromMilliseconds(50)
+        };
+        var error = await Assert.ThrowsAsync<TimeoutException>(() => HeartSession.IsValidAsync(http, CancellationToken.None));
+        StringAssert.Contains(error.Message, "session");
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsExactlyAsync<TaskCanceledException>(() => HeartSession.IsValidAsync(http, cancellation.Token));
+    }
+
+    private sealed class DelayedSessionCheckHandler : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK);
+        }
+    }
+
+    [TestMethod]
     public async Task DistinguishesTlsFailuresFromRejectedImapCredentialsWithoutLeakingDetails()
     {
         const string sensitive = "mailbox-password-or-server-response";

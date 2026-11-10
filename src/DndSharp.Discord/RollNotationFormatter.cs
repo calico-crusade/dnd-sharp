@@ -12,6 +12,8 @@ internal static class RollNotationFormatter
 
     public static string Format(JsonElement entry, string notation, string baseNotation, string label)
     {
+        if (ReactionRollFormatter.IsReaction(entry))
+            return ReactionRollFormatter.Format(entry, notation);
         notation = DualityDisplay.FormatNotation(entry, notation);
         var match = ResultOnly.Match(notation);
         if (!match.Success || entry.ValueKind != JsonValueKind.Object ||
