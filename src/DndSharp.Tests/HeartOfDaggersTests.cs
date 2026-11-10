@@ -1,7 +1,9 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using System.Threading.Channels;
 using DndSharp.HeartOfDaggers;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace DndSharp.Tests;
 
@@ -197,6 +199,75 @@ public sealed class HeartOfDaggersTests
     }
 
     [TestMethod]
+    public async Task InvalidHistoryResponseUsesCampaignPageAndRetriesIfRefreshFails()
+    {
+        var initialHtml = CampaignHtml.Replace("\"campaignOwnedCharacterIds\":[12]",
+            "\"campaignOwnedCharacterIds\":[12], \"diceHistory\":[{\"id\":\"old\"}]");
+        var refreshedHtml = CampaignHtml.Replace("\"campaignOwnedCharacterIds\":[12]",
+            "\"campaignOwnedCharacterIds\":[12], \"diceHistory\":[{\"id\":\"old\"},{\"id\":\"new\"}]");
+        var campaign = CampaignSession.Parse("test123", initialHtml);
+        var handler = new HistoryRecoveryHandler(refreshedHtml);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://heartofdaggers.com/") };
+        var client = new HeartOfDaggersClient(http);
+
+        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => client.GetCampaignHistoryAsync(campaign));
+        Assert.IsFalse(exception.Message.Contains("sensitive server response", StringComparison.Ordinal));
+        var baseline = await CampaignHistoryRecovery.ReadAsync(client, campaign, false, NullLogger.Instance, CancellationToken.None);
+        Assert.IsNotNull(baseline);
+        Assert.AreEqual(1, baseline.Entries.Count);
+        Assert.IsFalse(baseline.Retry);
+
+        var refreshed = await CampaignHistoryRecovery.ReadAsync(client, campaign, true, NullLogger.Instance, CancellationToken.None);
+        Assert.IsNotNull(refreshed);
+        Assert.AreEqual(2, refreshed.Entries.Count);
+        Assert.AreEqual("new", refreshed.Entries[1].GetProperty("id").GetString());
+        Assert.IsFalse(refreshed.Retry);
+
+        handler.FailPage = true;
+        var stale = await CampaignHistoryRecovery.ReadAsync(client, campaign, true, NullLogger.Instance, CancellationToken.None);
+        Assert.IsNotNull(stale);
+        Assert.AreEqual(1, stale.Entries.Count);
+        Assert.IsTrue(stale.Retry);
+
+        var withoutHistory = CampaignSession.Parse("test123", CampaignHtml);
+        Assert.IsNull(await CampaignHistoryRecovery.ReadAsync(client, withoutHistory, true, NullLogger.Instance, CancellationToken.None));
+    }
+
+    [TestMethod]
+    public async Task HistoryRecoveryDoesNotHideAuthorizationFailures()
+    {
+        var campaign = CampaignSession.Parse("test123", CampaignHtml.Replace("\"campaignOwnedCharacterIds\":[12]",
+            "\"campaignOwnedCharacterIds\":[12], \"diceHistory\":[]"));
+        using var http = new HttpClient(new FakeHandler(HttpStatusCode.Forbidden, "")) { BaseAddress = new Uri("https://heartofdaggers.com/") };
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            CampaignHistoryRecovery.ReadAsync(new HeartOfDaggersClient(http), campaign, false, NullLogger.Instance, CancellationToken.None));
+    }
+
+    [TestMethod]
+    public async Task SlowHistoryReconciliationDoesNotBlockLiveRolls()
+    {
+        var campaign = CampaignSession.Parse("test123", CampaignHtml);
+        var handler = new SlowHistoryHandler();
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://heartofdaggers.com/") };
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var incoming = Channel.CreateUnbounded<CampaignHistoryWatcher.HistoryMessage>();
+        var reconciliation = CampaignHistoryWatcher.ReconcileInBackground(new HeartOfDaggersClient(http), campaign,
+            incoming.Writer, NullLogger.Instance, timeout.Token);
+        await handler.Started.Task.WaitAsync(timeout.Token);
+        using var roll = JsonDocument.Parse("""{"id":"live"}""");
+        Assert.IsTrue(incoming.Writer.TryWrite(new CampaignHistoryWatcher.HistoryMessage(roll.RootElement.Clone(), null)));
+        var live = await incoming.Reader.ReadAsync(timeout.Token);
+        Assert.AreEqual("live", live.Entry!.Value.GetProperty("id").GetString());
+        Assert.IsFalse(reconciliation.IsCompleted);
+
+        handler.Release.TrySetResult();
+        var snapshot = await incoming.Reader.ReadAsync(timeout.Token);
+        Assert.IsNotNull(snapshot.Snapshot);
+        Assert.AreEqual("history", snapshot.Snapshot.Entries[0].GetProperty("id").GetString());
+        await reconciliation;
+    }
+
+    [TestMethod]
     public async Task CharacterSnapshotIncludesSheetStateWithoutCredentials()
     {
         var handler = new CharacterHandler();
@@ -238,6 +309,36 @@ public sealed class HeartOfDaggersTests
             return new HttpResponseMessage(status)
             {
                 Content = new StringContent(content, Encoding.UTF8, "application/json")
+            };
+        }
+    }
+
+    private sealed class HistoryRecoveryHandler(string page) : HttpMessageHandler
+    {
+        public bool FailPage { get; set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (request.Method == HttpMethod.Post)
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("<html>sensitive server response</html>") });
+            return Task.FromResult(FailPage
+                ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                : new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(page) });
+        }
+    }
+
+    private sealed class SlowHistoryHandler : HttpMessageHandler
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"success":true,"data":{"history":[{"id":"history"}]}}""")
             };
         }
     }

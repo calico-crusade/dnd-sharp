@@ -27,6 +27,8 @@ public sealed class CampaignSession
         SocketUri = socketUri;
         CharacterIds = ReadIds(state, "campaignCharacterIds");
         OwnedCharacterIds = ReadIds(state, "campaignOwnedCharacterIds");
+        if (state.TryGetProperty("diceHistory", out var history) && history.ValueKind == JsonValueKind.Array)
+            EmbeddedHistory = history.EnumerateArray().Select(item => item.Clone()).ToArray();
     }
 
     public string Slug { get; }
@@ -44,6 +46,7 @@ public sealed class CampaignSession
     // Credentials are intentionally internal and must never be serialized or logged.
     internal string SocketAuth { get; }
     internal string Nonce { get; }
+    internal IReadOnlyList<JsonElement>? EmbeddedHistory { get; }
 
     public static string ParseCampaignSlug(string value)
     {

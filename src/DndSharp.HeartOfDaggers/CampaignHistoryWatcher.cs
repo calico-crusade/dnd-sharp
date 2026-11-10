@@ -20,7 +20,13 @@ public sealed class CampaignHistoryWatcher(HeartOfDaggersClient api, ILogger<Cam
         if (tracker.CampaignId != session.Id)
             throw new ArgumentException("History tracker belongs to a different campaign.", nameof(existingTracker));
         if (!tracker.HasBaseline)
-            tracker.Seed(await api.GetCampaignHistoryAsync(session, token));
+        {
+            var baseline = await CampaignHistoryRecovery.ReadAsync(api, session, false, logger, token);
+            if (baseline is not null)
+                tracker.Seed(baseline.Entries);
+            else
+                logger.LogWarning("Campaign history is unavailable; starting the live watcher without a history baseline.");
+        }
 
         while (!token.IsCancellationRequested)
         {
@@ -37,8 +43,10 @@ public sealed class CampaignHistoryWatcher(HeartOfDaggersClient api, ILogger<Cam
             }
             if (session.Id != sessionId)
                 throw new InvalidOperationException("The campaign ID changed while watching history.");
-            var incoming = Channel.CreateUnbounded<JsonElement>(new UnboundedChannelOptions { SingleReader = true });
+            var incoming = Channel.CreateUnbounded<HistoryMessage>(new UnboundedChannelOptions { SingleReader = true });
             var joined = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var reconcileCancellation = CancellationTokenSource.CreateLinkedTokenSource(token);
+            Task? reconciliationTask = null;
             using var socket = new SocketIO(session.SocketUri, new SocketIOOptions
             {
                 EIO = EngineIO.V4,
@@ -68,7 +76,7 @@ public sealed class CampaignHistoryWatcher(HeartOfDaggersClient api, ILogger<Cam
                     if (payload.ValueKind == JsonValueKind.Object &&
                         payload.TryGetProperty("campaignId", out var eventCampaign) && eventCampaign.TryGetInt64(out var id) && id == session.Id &&
                         payload.TryGetProperty("entry", out var entry) && entry.ValueKind == JsonValueKind.Object)
-                        incoming.Writer.TryWrite(entry.Clone());
+                        incoming.Writer.TryWrite(new HistoryMessage(entry.Clone(), null));
                     return Task.CompletedTask;
                 });
 
@@ -91,10 +99,20 @@ public sealed class CampaignHistoryWatcher(HeartOfDaggersClient api, ILogger<Cam
                 logger.LogInformation("Listening to Heart of Daggers campaign {CampaignId}.", session.Id);
 
                 // Subscribe first, then reconcile. Events arriving during the read are buffered and deduplicated.
-                foreach (var entry in await api.GetCampaignHistoryAsync(session, token))
-                    await Deliver(entry);
-                await foreach (var entry in incoming.Reader.ReadAllAsync(token))
-                    await Deliver(entry);
+                reconciliationTask = ReconcileInBackground(api, session, incoming.Writer, logger, reconcileCancellation.Token);
+                await foreach (var message in incoming.Reader.ReadAllAsync(token))
+                {
+                    if (message.Entry is { } entry)
+                        await Deliver(entry);
+                    else if (message.Snapshot is { } snapshot)
+                    {
+                        if (!tracker.HasBaseline)
+                            tracker.Seed(snapshot.Entries);
+                        else
+                            foreach (var historyEntry in snapshot.Entries)
+                                await Deliver(historyEntry);
+                    }
+                }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
@@ -115,6 +133,12 @@ public sealed class CampaignHistoryWatcher(HeartOfDaggersClient api, ILogger<Cam
             }
             finally
             {
+                reconcileCancellation.Cancel();
+                if (reconciliationTask is not null)
+                {
+                    try { await reconciliationTask; }
+                    catch (OperationCanceledException) when (reconcileCancellation.IsCancellationRequested) { }
+                }
                 if (socket.Connected)
                     await socket.DisconnectAsync();
             }
@@ -142,5 +166,31 @@ public sealed class CampaignHistoryWatcher(HeartOfDaggersClient api, ILogger<Cam
         }
     }
 
+    internal static async Task ReconcileInBackground(HeartOfDaggersClient api, CampaignSession session,
+        ChannelWriter<HistoryMessage> writer, ILogger logger, CancellationToken token)
+    {
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                var snapshot = await CampaignHistoryRecovery.ReadAsync(api, session, true, logger, token);
+                if (snapshot is not null && !writer.TryWrite(new HistoryMessage(null, snapshot)))
+                    return;
+                if (snapshot is not null && !snapshot.Retry)
+                    return;
+                logger.LogWarning("Campaign history is unavailable; live notifications remain active and history will be retried.");
+                await Task.Delay(TimeSpan.FromSeconds(30), token);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            writer.TryComplete(ex);
+        }
+    }
+
+    internal sealed record HistoryMessage(JsonElement? Entry, CampaignHistorySnapshot? Snapshot);
     private sealed class HistoryConsumerException(Exception inner) : Exception("History notification handler failed.", inner);
 }

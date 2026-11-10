@@ -47,13 +47,24 @@ public sealed class HeartOfDaggersClient(HttpClient http)
             throw new UnauthorizedAccessException("Heart of Daggers rejected the session or denied access to campaign history.");
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(token);
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: token);
-        var root = document.RootElement;
-        if (!root.TryGetProperty("success", out var success) || success.ValueKind != JsonValueKind.True ||
-            !root.TryGetProperty("data", out var data) || !data.TryGetProperty("history", out var history) ||
-            history.ValueKind != JsonValueKind.Array)
-            throw new InvalidOperationException("Heart of Daggers did not return campaign history. The session may have expired.");
-        return history.EnumerateArray().Select(item => item.Clone()).ToArray();
+        JsonDocument document;
+        try
+        {
+            document = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException("Heart of Daggers returned invalid JSON for campaign history.", ex);
+        }
+        using (document)
+        {
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("success", out var success) || success.ValueKind != JsonValueKind.True ||
+                !root.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object || !data.TryGetProperty("history", out var history) ||
+                history.ValueKind != JsonValueKind.Array)
+                throw new InvalidDataException("Heart of Daggers did not return a valid campaign history list.");
+            return history.EnumerateArray().Select(item => item.Clone()).ToArray();
+        }
     }
 
     /// <summary>Fetch the full available Owlbear character data for every campaign character.</summary>
